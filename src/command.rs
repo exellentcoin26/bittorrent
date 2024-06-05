@@ -8,5 +8,6 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
+    /// Decode the given binary encoded value into a json value.
     Decode { value: String },
 }
