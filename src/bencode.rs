@@ -3,7 +3,7 @@ use serde::Serialize;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BencodeValue {
     BString(String),
-    BInteger(i32),
+    BInteger(i64),
 }
 
 impl std::str::FromStr for BencodeValue {
@@ -21,7 +21,7 @@ impl Serialize for BencodeValue {
     {
         match self {
             BencodeValue::BString(value) => serializer.serialize_str(value),
-            BencodeValue::BInteger(n) => serializer.serialize_i32(*n),
+            BencodeValue::BInteger(n) => serializer.serialize_i64(*n),
         }
     }
 }
@@ -35,10 +35,10 @@ peg::parser! {
         /// Binary encoded string (`n:<some-content>`).
         rule bstring() -> String = n:integer() ":" value:$([_]*<{n as usize}>) { value.to_string() }
         /// Binary encoded integer (`d:<some-whole-number>e`).
-        rule binteger() -> i32 = "i" sign:['-']? n:integer() "e" { sign.map(|_| -(n as i32)).unwrap_or(n as i32)}
+        rule binteger() -> i64 = "i" sign:['-']? n:integer() "e" { sign.map(|_| -(n as i64)).unwrap_or(n as i64)}
 
         /// Unsigned natural number.
-        rule integer() -> u32 = n:$((non_zero_digit() digit()*) / digit()) {? n.parse().or(Err("non zero length"))}
+        rule integer() -> u64 = n:$((non_zero_digit() digit()*) / digit()) {? n.parse().or(Err("non zero length"))}
 
         rule non_zero_digit() -> char = [c if c.is_ascii_digit() && c != '0']
         rule digit() -> char = [c if c.is_ascii_digit()]
@@ -72,10 +72,12 @@ mod tests {
         let value1 = BencodeValue::from_str("i2147483647e").unwrap();
         let value2 = BencodeValue::from_str("i0e").unwrap();
         let value3 = BencodeValue::from_str("i-61e").unwrap();
+        let value4 = BencodeValue::from_str("i4294967300e").unwrap();
 
         assert_eq!(value0, BencodeValue::BInteger(42));
         assert_eq!(value1, BencodeValue::BInteger(2147483647));
         assert_eq!(value2, BencodeValue::BInteger(0));
-        assert_eq!(value3, BencodeValue::BInteger(-61))
+        assert_eq!(value3, BencodeValue::BInteger(-61));
+        assert_eq!(value4, BencodeValue::BInteger(4294967300));
     }
 }
