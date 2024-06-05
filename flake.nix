@@ -25,7 +25,9 @@
       in {
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
-            rust-bin.stable."1.77.2".default
+            (rust-bin.stable."1.77.2".default.override {
+              extensions = ["rust-analyzer" "rust-src"];
+            })
             bacon
 
             pkg-config
