@@ -3,6 +3,7 @@ use serde::Serialize;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BencodeValue {
     BString(String),
+    BInteger(i32),
 }
 
 impl std::str::FromStr for BencodeValue {
@@ -20,16 +21,21 @@ impl Serialize for BencodeValue {
     {
         match self {
             BencodeValue::BString(value) => serializer.serialize_str(value),
+            BencodeValue::BInteger(n) => serializer.serialize_i32(*n),
         }
     }
 }
 
 peg::parser! {
     grammar bencode_parser() for str {
-        pub rule value() -> BencodeValue = s:bstring() { BencodeValue::BString(s) }
+        pub rule value() -> BencodeValue
+            = s:bstring() { BencodeValue::BString(s) }
+            / n:binteger() { BencodeValue::BInteger(n) }
 
-        /// Binary string encoded as `n:<some-content>`
+        /// Binary encoded string (`n:<some-content>`).
         rule bstring() -> String = n:integer() ":" value:$([_]*<{n as usize}>) { value.to_string() }
+        /// Binary encoded integer (`d:<some-whole-number>e`).
+        rule binteger() -> i32 = "i" sign:['-']? n:integer() "e" { sign.map(|_| -(n as i32)).unwrap_or(n as i32)}
 
         /// Unsigned natural number.
         rule integer() -> u32 = n:$((non_zero_digit() digit()*) / digit()) {? n.parse().or(Err("non zero length"))}
@@ -58,5 +64,18 @@ mod tests {
         assert_eq!(value2, BencodeValue::BString("f".to_string()));
         assert_eq!(value3, BencodeValue::BString("foobarfoobarfoo".to_string()));
         assert_eq!(value4, BencodeValue::BString("".to_string()));
+    }
+
+    #[test]
+    fn binteger() {
+        let value0 = BencodeValue::from_str("i42e").unwrap();
+        let value1 = BencodeValue::from_str("i2147483647e").unwrap();
+        let value2 = BencodeValue::from_str("i0e").unwrap();
+        let value3 = BencodeValue::from_str("i-61e").unwrap();
+
+        assert_eq!(value0, BencodeValue::BInteger(42));
+        assert_eq!(value1, BencodeValue::BInteger(2147483647));
+        assert_eq!(value2, BencodeValue::BInteger(0));
+        assert_eq!(value3, BencodeValue::BInteger(-61))
     }
 }
