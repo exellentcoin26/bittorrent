@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BencodeValue {
     BString(String),
 }
@@ -10,6 +10,17 @@ impl std::str::FromStr for BencodeValue {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(bencode_parser::value(s)?)
+    }
+}
+
+impl Serialize for BencodeValue {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            BencodeValue::BString(value) => serializer.serialize_str(value),
+        }
     }
 }
 
