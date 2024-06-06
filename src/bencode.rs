@@ -69,10 +69,9 @@ peg::parser! {
 
         /// Unsigned natural number.
         rule integer() -> u64 = n:$((non_zero_digit() digit()*) / digit()) {?
-            match std::str::from_utf8(n).map(|n| n.parse()) {
-                Ok(Ok(n)) => Ok(n),
-                _ => Err("unsigned 64 bit integer")
-            }
+            std::str::from_utf8(n).map_err(|_| ())
+                .and_then(|n| n.parse().map_err(|_| ()))
+                .or(Err("unsigned 64 bit integer"))
         }
 
         rule non_zero_digit() -> u8 = quiet! { [c if c.is_ascii_digit() && c != b'0'] } / expected!("non-zero ascii digit")
