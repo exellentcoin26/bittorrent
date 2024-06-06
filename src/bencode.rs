@@ -1,16 +1,22 @@
+use std::collections::BTreeMap;
+
 use anyhow::Result;
 use bstr::BString;
-use serde::{ser::SerializeSeq, Serialize};
+use serde::{
+    ser::{SerializeMap, SerializeSeq},
+    Serialize,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BencodeValue {
     String(BString),
     Integer(i64),
     List(Box<[BencodeValue]>),
+    Dict(BTreeMap<BString, BencodeValue>),
 }
 
 impl BencodeValue {
-    /// Tries to parse the bytes into a [`BencodeValue`].
+    /// Attempts to parse the bytes into a [`BencodeValue`].
     pub fn try_from_bytes(bytes: &[u8]) -> Result<Self> {
         Ok(bencode_parser::value(bytes)?)
     }
@@ -31,6 +37,13 @@ impl Serialize for BencodeValue {
                 }
                 s.end()
             }
+            BencodeValue::Dict(d) => {
+                let mut s = serializer.serialize_map(Some(d.len()))?;
+                for (k, v) in d.iter() {
+                    s.serialize_entry(k, v)?;
+                }
+                s.end()
+            }
         }
     }
 }
@@ -41,6 +54,7 @@ peg::parser! {
             = s:bstring() { BencodeValue::String(s) }
             / n:binteger() { BencodeValue::Integer(n) }
             / l:blist() { BencodeValue::List(l) }
+            / d:bdict() { BencodeValue::Dict(d) }
 
         /// Binary encoded string (`n:<some-content>`).
         rule bstring() -> BString = n:integer() ":" value:$([_]*<{n as usize}>) { BString::from(value) }
@@ -48,6 +62,10 @@ peg::parser! {
         rule binteger() -> i64 = "i" sign:[b'-']? n:integer() "e" { sign.map(|_| -(n as i64)).unwrap_or(n as i64)}
         /// Binary encoded list of bencode values (`l<values-without-separators>e`).
         rule blist() -> Box<[BencodeValue]> = "l" l:value()* "e" { Box::from(l) }
+        /// Binary encoded dictionary (`d<key-value-pairs>e`)
+        rule bdict() -> BTreeMap<BString, BencodeValue> = "d" kvs:(k:bstring() v:value() { (k, v) })* "e" {
+            BTreeMap::from_iter(kvs)
+        }
 
         /// Unsigned natural number.
         rule integer() -> u64 = n:$((non_zero_digit() digit()*) / digit()) {?
@@ -57,8 +75,8 @@ peg::parser! {
             }
         }
 
-        rule non_zero_digit() -> u8 = [c if c.is_ascii_digit() && c != b'0']
-        rule digit() -> u8 = [c if c.is_ascii_digit()]
+        rule non_zero_digit() -> u8 = quiet! { [c if c.is_ascii_digit() && c != b'0'] } / expected!("non-zero ascii digit")
+        rule digit() -> u8 = quiet! { [c if c.is_ascii_digit()] } / expected!("ascii digit")
     }
 }
 
@@ -133,6 +151,72 @@ mod tests {
                 BencodeValue::Integer(-42),
                 BencodeValue::List(Box::from([BencodeValue::List(Box::from([]))]))
             ]))]))
+        );
+    }
+
+    #[test]
+    fn bdict() {
+        let value0 = BencodeValue::try_from_bytes(b"d4:spam3:fooe").unwrap();
+        let value1 = BencodeValue::try_from_bytes(b"d1:ei-40012ee").unwrap();
+        let value2 = BencodeValue::try_from_bytes(b"de").unwrap();
+        let value3 = BencodeValue::try_from_bytes(b"d4:spam3:foo1:bi8ee").unwrap();
+        let value4 =
+            BencodeValue::try_from_bytes(b"d4:spamd4:spamd4:spamd4:spamd4:spami-42eeeeee").unwrap();
+        let value5 = BencodeValue::try_from_bytes(b"d1:el3:bard1:ei-1008eeee").unwrap();
+
+        assert_eq!(
+            value0,
+            BencodeValue::Dict(BTreeMap::from([(
+                "spam".into(),
+                BencodeValue::String("foo".into())
+            )]))
+        );
+        assert_eq!(
+            value1,
+            BencodeValue::Dict(BTreeMap::from([(
+                "e".into(),
+                BencodeValue::Integer(-40012)
+            )]))
+        );
+        assert_eq!(value2, BencodeValue::Dict(BTreeMap::from([])));
+        assert_eq!(
+            value3,
+            BencodeValue::Dict(BTreeMap::from([
+                ("spam".into(), BencodeValue::String("foo".into())),
+                ("b".into(), BencodeValue::Integer(8))
+            ]))
+        );
+        assert_eq!(
+            value4,
+            BencodeValue::Dict(BTreeMap::from([(
+                "spam".into(),
+                BencodeValue::Dict(BTreeMap::from([(
+                    "spam".into(),
+                    BencodeValue::Dict(BTreeMap::from([(
+                        "spam".into(),
+                        BencodeValue::Dict(BTreeMap::from([(
+                            "spam".into(),
+                            BencodeValue::Dict(BTreeMap::from([(
+                                "spam".into(),
+                                BencodeValue::Integer(-42)
+                            )]))
+                        )]))
+                    )]))
+                )]))
+            ),]))
+        );
+        assert_eq!(
+            value5,
+            BencodeValue::Dict(BTreeMap::from([(
+                "e".into(),
+                BencodeValue::List(Box::from([
+                    BencodeValue::String("bar".into()),
+                    BencodeValue::Dict(BTreeMap::from([(
+                        "e".into(),
+                        BencodeValue::Integer(-1008)
+                    )]))
+                ]))
+            ),]))
         );
     }
 }
