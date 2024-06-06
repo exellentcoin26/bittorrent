@@ -1,11 +1,12 @@
 use anyhow::Result;
 use bstr::BString;
-use serde::Serialize;
+use serde::{ser::SerializeSeq, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BencodeValue {
     BString(BString),
     BInteger(i64),
+    BList(Box<[BencodeValue]>),
 }
 
 impl BencodeValue {
@@ -23,6 +24,13 @@ impl Serialize for BencodeValue {
         match self {
             BencodeValue::BString(value) => value.serialize(serializer),
             BencodeValue::BInteger(n) => serializer.serialize_i64(*n),
+            BencodeValue::BList(l) => {
+                let mut s = serializer.serialize_seq(Some(l.len()))?;
+                for e in l.iter() {
+                    s.serialize_element(e)?;
+                }
+                s.end()
+            }
         }
     }
 }
@@ -32,11 +40,14 @@ peg::parser! {
         pub rule value() -> BencodeValue
             = s:bstring() { BencodeValue::BString(s) }
             / n:binteger() { BencodeValue::BInteger(n) }
+            / l:blist() { BencodeValue::BList(l) }
 
         /// Binary encoded string (`n:<some-content>`).
         rule bstring() -> BString = n:integer() ":" value:$([_]*<{n as usize}>) { BString::from(value) }
         /// Binary encoded integer (`d:<some-whole-number>e`).
         rule binteger() -> i64 = "i" sign:[b'-']? n:integer() "e" { sign.map(|_| -(n as i64)).unwrap_or(n as i64)}
+        /// Binary encoded list of bencode values (`l<values-without-separators>e`).
+        rule blist() -> Box<[BencodeValue]> = "l" l:value()* "e" { Box::from(l) }
 
         /// Unsigned natural number.
         rule integer() -> u64 = n:$((non_zero_digit() digit()*) / digit()) {?
@@ -83,5 +94,45 @@ mod tests {
         assert_eq!(value2, BencodeValue::BInteger(0));
         assert_eq!(value3, BencodeValue::BInteger(-61));
         assert_eq!(value4, BencodeValue::BInteger(4294967300));
+    }
+
+    #[test]
+    fn blist() {
+        let value0 = BencodeValue::try_from_bytes(b"l4:spami42ee").unwrap();
+        let value1 = BencodeValue::try_from_bytes(b"l4:spame").unwrap();
+        let value2 = BencodeValue::try_from_bytes(b"li42ee").unwrap();
+        let value3 = BencodeValue::try_from_bytes(b"le").unwrap();
+        let value4 = BencodeValue::try_from_bytes(b"lllleeee").unwrap();
+        let value5 = BencodeValue::try_from_bytes(b"lli-42elleeee").unwrap();
+
+        assert_eq!(
+            value0,
+            BencodeValue::BList(Box::from([
+                BencodeValue::BString("spam".into()),
+                BencodeValue::BInteger(42)
+            ]))
+        );
+        assert_eq!(
+            value1,
+            BencodeValue::BList(Box::from([BencodeValue::BString("spam".into()),]))
+        );
+        assert_eq!(
+            value2,
+            BencodeValue::BList(Box::from([BencodeValue::BInteger(42),]))
+        );
+        assert_eq!(value3, BencodeValue::BList(Box::from([])));
+        assert_eq!(
+            value4,
+            BencodeValue::BList(Box::from([BencodeValue::BList(Box::from([
+                BencodeValue::BList(Box::from([BencodeValue::BList(Box::from([]))]))
+            ]))]))
+        );
+        assert_eq!(
+            value5,
+            BencodeValue::BList(Box::from([BencodeValue::BList(Box::from([
+                BencodeValue::BInteger(-42),
+                BencodeValue::BList(Box::from([BencodeValue::BList(Box::from([]))]))
+            ]))]))
+        );
     }
 }
