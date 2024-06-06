@@ -1,3 +1,4 @@
+use bstr::BString;
 use clap::{Parser, Subcommand};
 
 #[derive(Debug, Parser)]
@@ -9,5 +10,5 @@ pub struct Cli {
 #[derive(Debug, Subcommand)]
 pub enum Command {
     /// Decode the given binary encoded value into a json value.
-    Decode { value: String },
+    Decode { value: BString },
 }
