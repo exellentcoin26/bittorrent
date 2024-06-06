@@ -4,9 +4,9 @@ use serde::{ser::SerializeSeq, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BencodeValue {
-    BString(BString),
-    BInteger(i64),
-    BList(Box<[BencodeValue]>),
+    String(BString),
+    Integer(i64),
+    List(Box<[BencodeValue]>),
 }
 
 impl BencodeValue {
@@ -22,9 +22,9 @@ impl Serialize for BencodeValue {
         S: serde::Serializer,
     {
         match self {
-            BencodeValue::BString(value) => value.serialize(serializer),
-            BencodeValue::BInteger(n) => serializer.serialize_i64(*n),
-            BencodeValue::BList(l) => {
+            BencodeValue::String(value) => value.serialize(serializer),
+            BencodeValue::Integer(n) => serializer.serialize_i64(*n),
+            BencodeValue::List(l) => {
                 let mut s = serializer.serialize_seq(Some(l.len()))?;
                 for e in l.iter() {
                     s.serialize_element(e)?;
@@ -38,9 +38,9 @@ impl Serialize for BencodeValue {
 peg::parser! {
     grammar bencode_parser() for [u8] {
         pub rule value() -> BencodeValue
-            = s:bstring() { BencodeValue::BString(s) }
-            / n:binteger() { BencodeValue::BInteger(n) }
-            / l:blist() { BencodeValue::BList(l) }
+            = s:bstring() { BencodeValue::String(s) }
+            / n:binteger() { BencodeValue::Integer(n) }
+            / l:blist() { BencodeValue::List(l) }
 
         /// Binary encoded string (`n:<some-content>`).
         rule bstring() -> BString = n:integer() ":" value:$([_]*<{n as usize}>) { BString::from(value) }
@@ -74,11 +74,11 @@ mod tests {
         let value3 = BencodeValue::try_from_bytes(b"15:foobarfoobarfoo").unwrap();
         let value4 = BencodeValue::try_from_bytes(b"0:").unwrap();
 
-        assert_eq!(value0, BencodeValue::BString("foobar".into()));
-        assert_eq!(value1, BencodeValue::BString("foo".into()));
-        assert_eq!(value2, BencodeValue::BString("f".into()));
-        assert_eq!(value3, BencodeValue::BString("foobarfoobarfoo".into()));
-        assert_eq!(value4, BencodeValue::BString("".into()));
+        assert_eq!(value0, BencodeValue::String("foobar".into()));
+        assert_eq!(value1, BencodeValue::String("foo".into()));
+        assert_eq!(value2, BencodeValue::String("f".into()));
+        assert_eq!(value3, BencodeValue::String("foobarfoobarfoo".into()));
+        assert_eq!(value4, BencodeValue::String("".into()));
     }
 
     #[test]
@@ -89,11 +89,11 @@ mod tests {
         let value3 = BencodeValue::try_from_bytes(b"i-61e").unwrap();
         let value4 = BencodeValue::try_from_bytes(b"i4294967300e").unwrap();
 
-        assert_eq!(value0, BencodeValue::BInteger(42));
-        assert_eq!(value1, BencodeValue::BInteger(2147483647));
-        assert_eq!(value2, BencodeValue::BInteger(0));
-        assert_eq!(value3, BencodeValue::BInteger(-61));
-        assert_eq!(value4, BencodeValue::BInteger(4294967300));
+        assert_eq!(value0, BencodeValue::Integer(42));
+        assert_eq!(value1, BencodeValue::Integer(2147483647));
+        assert_eq!(value2, BencodeValue::Integer(0));
+        assert_eq!(value3, BencodeValue::Integer(-61));
+        assert_eq!(value4, BencodeValue::Integer(4294967300));
     }
 
     #[test]
@@ -107,31 +107,31 @@ mod tests {
 
         assert_eq!(
             value0,
-            BencodeValue::BList(Box::from([
-                BencodeValue::BString("spam".into()),
-                BencodeValue::BInteger(42)
+            BencodeValue::List(Box::from([
+                BencodeValue::String("spam".into()),
+                BencodeValue::Integer(42)
             ]))
         );
         assert_eq!(
             value1,
-            BencodeValue::BList(Box::from([BencodeValue::BString("spam".into()),]))
+            BencodeValue::List(Box::from([BencodeValue::String("spam".into()),]))
         );
         assert_eq!(
             value2,
-            BencodeValue::BList(Box::from([BencodeValue::BInteger(42),]))
+            BencodeValue::List(Box::from([BencodeValue::Integer(42),]))
         );
-        assert_eq!(value3, BencodeValue::BList(Box::from([])));
+        assert_eq!(value3, BencodeValue::List(Box::from([])));
         assert_eq!(
             value4,
-            BencodeValue::BList(Box::from([BencodeValue::BList(Box::from([
-                BencodeValue::BList(Box::from([BencodeValue::BList(Box::from([]))]))
+            BencodeValue::List(Box::from([BencodeValue::List(Box::from([
+                BencodeValue::List(Box::from([BencodeValue::List(Box::from([]))]))
             ]))]))
         );
         assert_eq!(
             value5,
-            BencodeValue::BList(Box::from([BencodeValue::BList(Box::from([
-                BencodeValue::BInteger(-42),
-                BencodeValue::BList(Box::from([BencodeValue::BList(Box::from([]))]))
+            BencodeValue::List(Box::from([BencodeValue::List(Box::from([
+                BencodeValue::Integer(-42),
+                BencodeValue::List(Box::from([BencodeValue::List(Box::from([]))]))
             ]))]))
         );
     }
