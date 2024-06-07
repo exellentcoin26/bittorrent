@@ -12,7 +12,7 @@ pub enum BencodeValue {
     String(BString),
     Integer(i64),
     List(Box<[BencodeValue]>),
-    Dict(BTreeMap<BString, BencodeValue>),
+    Dict(BTreeMap<String, BencodeValue>),
 }
 
 impl BencodeValue {
@@ -63,7 +63,7 @@ peg::parser! {
         /// Binary encoded list of bencode values (`l<values-without-separators>e`).
         rule blist() -> Box<[BencodeValue]> = "l" l:value()* "e" { Box::from(l) }
         /// Binary encoded dictionary (`d<key-value-pairs>e`)
-        rule bdict() -> BTreeMap<BString, BencodeValue> = "d" kvs:(k:bstring() v:value() { (k, v) })* "e" {
+        rule bdict() -> BTreeMap<String, BencodeValue> = "d" kvs:(k:bstring() v:value() { (k.to_string(), v) })* "e" {
             BTreeMap::from_iter(kvs)
         }
 
