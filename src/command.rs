@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use bstr::BString;
 use clap::{Parser, Subcommand};
 
@@ -10,5 +12,10 @@ pub struct Cli {
 #[derive(Debug, Subcommand)]
 pub enum Command {
     /// Decode the given binary encoded value into a json value.
-    Decode { value: BString },
+    Decode {
+        value: BString,
+    },
+    Info {
+        path: PathBuf,
+    },
 }
