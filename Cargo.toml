@@ -12,6 +12,10 @@ bytes = "1.3.0"
 bstr = { version = "1.9.1", features = ["serde"] }
 # Creating a cli
 clap = { version = "4.0.32", features = ["derive"] }
+# Helpers for deriving trivial traits
+derive_more = "0.99.17"
+# Help writing byte string literals to buffers
+format-bytes = "0.3.0"
 hex = "0.4.3"
 # Grammar based parser generator
 peg = "0.8.3"
@@ -21,8 +25,6 @@ regex = "1"
 reqwest = { version = "0.11.18", features = ["json", "blocking"] }
 # For json mangling
 serde = { version = "1.0.136", features = ["derive"] }
-# For bencode encoding/decoding
-serde_bencode = "0.2.3"
 # For dealing with bytes
 serde_bytes = "0.11.12"
 # For json mangling

@@ -2,14 +2,16 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use bstr::{BStr, BString};
+use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 
 use crate::bencode::BencodeValue;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 pub struct Torrent {
     pub announce: BString,
     pub info: TorrentInfo,
+    pub info_hash: Bytes,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -25,43 +27,78 @@ pub struct TorrentInfo {
 pub struct TorrentOverview<'a> {
     tracker_url: &'a BStr,
     length: usize,
+    info_hash: &'a Bytes,
 }
 
 impl Torrent {
     pub fn from_file_path(path: impl AsRef<Path>) -> Result<Self> {
-        use std::io::Read;
+        #[derive(Debug, Deserialize)]
+        struct TorrentFile {
+            pub announce: BString,
+            pub info: TorrentInfo,
+        }
 
-        let mut file = std::fs::File::open(&path).with_context(|| {
-            format!(
-                "failed to open torrent file from path `{:?}`",
-                path.as_ref()
-            )
-        })?;
+        impl TorrentFile {
+            fn from_file_path(path: impl AsRef<Path>) -> Result<Self> {
+                use std::io::Read;
 
-        let contents = {
-            let mut content_buf = match file.metadata() {
-                Ok(m) => Vec::with_capacity(m.len() as usize),
-                _ => Vec::new(),
-            };
-            file.read_to_end(&mut content_buf)
-                .context("failed to read contents of torrent file")?;
-            content_buf
-        };
+                let mut file = std::fs::File::open(&path).with_context(|| {
+                    format!(
+                        "failed to open torrent file from path `{:?}`",
+                        path.as_ref()
+                    )
+                })?;
 
-        let parsed_contents =
-            BencodeValue::try_from_bytes(&contents).context("failed to decode torrent contents")?;
+                let contents = {
+                    let mut content_buf = match file.metadata() {
+                        Ok(m) => Vec::with_capacity(m.len() as usize),
+                        _ => Vec::new(),
+                    };
+                    file.read_to_end(&mut content_buf)
+                        .context("failed to read contents of torrent file")?;
+                    content_buf
+                };
 
-        let parsed_contents =
-            serde_json::to_value(parsed_contents).context("failed to decode torrent contents")?;
+                let parsed_contents = BencodeValue::try_from_bytes(&contents)
+                    .context("failed to decode torrent contents")?;
 
-        serde_json::from_value(parsed_contents)
-            .context("torrent contents do not match torrent specifications")
+                parsed_contents
+                    .into_deserialize()
+                    .context("torrent contents do not match torrent specifications")
+            }
+
+            fn torrent_info_hash(&self) -> Result<Bytes> {
+                use sha1::{Digest, Sha1};
+
+                let torrent_info_bencode_bytes = &*BencodeValue::from_serialize(&self.info)
+                    .context("failed to serialize torrent info")?
+                    .to_byte_string()
+                    .context("failed to serialize bencode value as bytes")?;
+
+                let mut hasher = Sha1::new();
+                hasher.update(torrent_info_bencode_bytes);
+                Ok(Bytes::copy_from_slice(&hasher.finalize()))
+            }
+        }
+
+        let file = TorrentFile::from_file_path(path)?;
+
+        let info_hash = file
+            .torrent_info_hash()
+            .context("failed to calculate torrent info hash")?;
+
+        Ok(Self {
+            announce: file.announce,
+            info: file.info,
+            info_hash,
+        })
     }
 
     pub fn overview(&self) -> TorrentOverview {
         TorrentOverview {
             tracker_url: self.announce.as_ref(),
             length: self.info.length as usize,
+            info_hash: &self.info_hash,
         }
     }
 }
@@ -69,6 +106,7 @@ impl Torrent {
 impl std::fmt::Display for TorrentOverview<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "Tracker URL: {}", self.tracker_url)?;
-        writeln!(f, "length: {}", self.length)
+        writeln!(f, "length: {}", self.length)?;
+        writeln!(f, "Info Hash: {}", hex::encode(self.info_hash))
     }
 }
