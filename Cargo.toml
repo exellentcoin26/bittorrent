@@ -6,6 +6,8 @@ edition = "2021"
 [dependencies]
 # Error handling
 anyhow = "1.0.68"
+# Bencode serialization and deserialization
+bencode = { workspace = true }
 # Helps wrap responses from reqwest
 bytes = "1.3.0"
 # Byte strings helper
@@ -39,3 +41,10 @@ tempfile = "3"
 thiserror = "1.0.38"
 # Async http requests
 tokio = { version = "1.23.0", features = ["full"] }
+
+[workspace]
+resolver = "2"
+members = ["bencode"]
+
+[workspace.dependencies]
+bencode = { path = "bencode" }

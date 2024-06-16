@@ -1,13 +1,12 @@
 use anyhow::{Context, Result};
+use bencode::BencodeValue;
 use clap::Parser;
 
 use crate::{
-    bencode::BencodeValue,
     command::{Cli, Command},
     torrent::Torrent,
 };
 
-mod bencode;
 mod command;
 mod torrent;
 

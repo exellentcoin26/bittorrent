@@ -1,11 +1,10 @@
 use std::path::Path;
 
 use anyhow::{Context, Result};
+use bencode::BencodeValue;
 use bstr::{BStr, BString};
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
-
-use crate::bencode::BencodeValue;
 
 #[derive(Debug)]
 pub struct Torrent {
