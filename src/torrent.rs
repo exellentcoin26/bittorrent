@@ -32,6 +32,8 @@ pub struct TorrentOverview<'a> {
     tracker_url: &'a BStr,
     length: usize,
     info_hash: &'a Bytes,
+    piece_length: usize,
+    pieces: &'a [Bytes],
 }
 
 impl Torrent {
@@ -103,6 +105,8 @@ impl Torrent {
             tracker_url: self.announce.as_ref(),
             length: self.info.length as usize,
             info_hash: &self.info_hash,
+            piece_length: self.info.piece_length as usize,
+            pieces: &self.info.pieces,
         }
     }
 }
@@ -111,6 +115,12 @@ impl std::fmt::Display for TorrentOverview<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "Tracker URL: {}", self.tracker_url)?;
         writeln!(f, "length: {}", self.length)?;
-        writeln!(f, "Info Hash: {}", hex::encode(self.info_hash))
+        writeln!(f, "Info Hash: {}", hex::encode(self.info_hash))?;
+        writeln!(f, "Piece Length: {}", self.piece_length)?;
+        writeln!(f, "Piece Hashes:")?;
+        for piece in self.pieces {
+            writeln!(f, "{}", hex::encode(piece))?;
+        }
+        Ok(())
     }
 }
