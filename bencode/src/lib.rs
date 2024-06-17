@@ -94,6 +94,8 @@ impl Serialize for BencodeValue {
 
 peg::parser! {
     grammar bencode_parser() for [u8] {
+        use bstr::ByteVec;
+
         pub rule value() -> BencodeValue
             = s:bstring() { BencodeValue::String(s) }
             / n:binteger() { BencodeValue::Integer(n) }
@@ -107,7 +109,11 @@ peg::parser! {
         /// Binary encoded list of bencode values (`l<values-without-separators>e`).
         rule blist() -> Box<[BencodeValue]> = "l" l:value()* "e" { Box::from(l) }
         /// Binary encoded dictionary (`d<key-value-pairs>e`)
-        rule bdict() -> BTreeMap<String, BencodeValue> = "d" kvs:(k:bstring() v:value() { (k.to_string(), v) })* "e" {
+        rule bdict() -> BTreeMap<String, BencodeValue> = "d" kvs:(
+            k:bstring() v:value() {?
+                Vec::from(k).into_string().map(|k| (k, v)).or(Err("valid utf-8 dict key"))
+            }
+        )* "e" {
             BTreeMap::from_iter(kvs)
         }
 

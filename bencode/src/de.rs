@@ -411,11 +411,19 @@ impl<'de> de::Deserializer<'de> for BencodeValue {
     where
         V: de::Visitor<'de>,
     {
+        use bstr::ByteVec;
+
         let deserializer: EnumDeserializer = match self {
             BencodeValue::Dict(d) => {
                 de::value::MapAccessDeserializer::new(d.into_deserializer()).into()
             }
-            BencodeValue::String(s) => s.to_string().into_deserializer().into(),
+            BencodeValue::String(s) => Vec::from(s)
+                .into_string()
+                .map_err(|e| {
+                    Error::invalid_value(de::Unexpected::Bytes(e.as_bytes()), &"valid utf-8 string")
+                })?
+                .into_deserializer()
+                .into(),
             other => {
                 return Err(Error::invalid_value(
                     other.unexpected(),
