@@ -5,6 +5,9 @@ use bencode::BencodeValue;
 use bstr::{BStr, BString};
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
+
+use crate::util::ByteChunksWithLength;
 
 #[derive(Debug)]
 pub struct Torrent {
@@ -13,13 +16,15 @@ pub struct Torrent {
     pub info_hash: Bytes,
 }
 
+#[serde_as]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TorrentInfo {
     pub length: u64,
     pub name: BString,
     #[serde(rename = "piece length")]
     pub piece_length: u64,
-    pub pieces: BString,
+    #[serde_as(as = "ByteChunksWithLength<20>")]
+    pub pieces: Vec<Bytes>,
 }
 
 #[derive(Debug, Clone, Copy)]

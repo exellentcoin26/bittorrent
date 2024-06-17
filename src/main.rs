@@ -9,6 +9,7 @@ use crate::{
 
 mod command;
 mod torrent;
+mod util;
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
