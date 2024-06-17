@@ -460,6 +460,7 @@ enum EnumDeserializer<'de> {
     ),
 }
 
+#[allow(clippy::type_complexity)]
 enum EnumVariantKind<'de> {
     Unit(<de::value::StringDeserializer<Error> as de::EnumAccess<'de>>::Variant),
     Struct(
