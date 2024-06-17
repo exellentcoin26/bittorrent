@@ -24,7 +24,7 @@ peg = "0.8.3"
 # For regular expressions
 regex = "1"
 # Http requests
-reqwest = { version = "0.11.18", features = ["json", "blocking"] }
+reqwest = { version = "0.12.4", features = ["json", "blocking"] }
 # For json mangling
 serde = { version = "1.0.136", features = ["derive"] }
 # For dealing with bytes
