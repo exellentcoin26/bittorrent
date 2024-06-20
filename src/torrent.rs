@@ -2,7 +2,7 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use bencode::BencodeValue;
-use bstr::{BStr, BString};
+use bstr::BString;
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -11,7 +11,7 @@ use crate::util::ByteChunksWithLength;
 
 #[derive(Debug)]
 pub struct Torrent {
-    pub announce: BString,
+    pub announce: String,
     pub info: TorrentInfo,
     pub info_hash: Bytes,
 }
@@ -29,7 +29,7 @@ pub struct TorrentInfo {
 
 #[derive(Debug, Clone, Copy)]
 pub struct TorrentOverview<'a> {
-    tracker_url: &'a BStr,
+    tracker_url: &'a str,
     length: usize,
     info_hash: &'a Bytes,
     piece_length: usize,
@@ -40,7 +40,7 @@ impl Torrent {
     pub fn from_file_path(path: impl AsRef<Path>) -> Result<Self> {
         #[derive(Debug, Deserialize)]
         struct TorrentFile {
-            pub announce: BString,
+            pub announce: String,
             pub info: TorrentInfo,
         }
 
