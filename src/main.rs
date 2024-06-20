@@ -5,6 +5,7 @@ use clap::Parser;
 use crate::{
     command::{Cli, Command},
     torrent::Torrent,
+    tracker::Tracker,
 };
 
 mod command;
@@ -24,7 +25,15 @@ fn main() -> Result<()> {
         Command::Info { path } => {
             let torrent =
                 Torrent::from_file_path(path).context("reading torrent from path failed")?;
-            println!("{}", torrent.overview())
+            println!("{}", torrent.overview());
+        }
+        Command::Peers { path } => {
+            let torrent =
+                Torrent::from_file_path(path).context("reading torrent from file path failed")?;
+            let tracker = Tracker::from(torrent);
+
+            let tracker_response = tracker.poll().context("failed to poll tracker")?;
+            println!("{}", tracker_response.peers());
         }
     }
 

@@ -18,6 +18,8 @@ clap = { version = "4.0.32", features = ["derive"] }
 derive_more = "0.99.17"
 # Help writing byte string literals to buffers
 format-bytes = "0.3.0"
+# Urlencoding
+form_urlencoded = "1.2.1"
 hex = "0.4.3"
 # Grammar based parser generator
 peg = "0.8.3"

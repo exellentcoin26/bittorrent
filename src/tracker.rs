@@ -1,9 +1,13 @@
-use std::{net::SocketAddrV4, time::Duration};
+use std::{borrow::Cow, net::SocketAddrV4, time::Duration};
 
 use anyhow::{Context, Result};
+use bencode::BencodeValue;
+use bstr::BString;
 use bytes::Bytes;
 use serde::Serialize;
-use serde_with::{serde_as, Bytes as SerdeBytes, FromInto};
+use serde_with::{serde_as, FromInto};
+
+use crate::torrent::Torrent;
 
 #[derive(Debug)]
 pub struct Tracker {
@@ -17,11 +21,12 @@ pub struct Tracker {
 }
 
 #[serde_as]
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 struct TrackerRequest {
-    info_hash: Bytes,
-    #[serde_as(as = "SerdeBytes")]
-    peer_id: [u8; 20],
+    /// Iso 8859-1 decoded byte string (needed to smuggle random bytes into url encoder).
+    info_hash: String,
+    /// Iso 8859-1 decoded byte string (needed to smuggle random bytes into url encoder).
+    peer_id: String,
     port: u16,
     uploaded: u64,
     downloaded: u64,
@@ -33,7 +38,16 @@ struct TrackerRequest {
 #[derive(Debug)]
 pub struct TrackerResponse {
     interval: Duration,
-    peers: Vec<SocketAddrV4>,
+    peers: Peers,
+}
+
+#[derive(Debug)]
+pub struct Peers(pub Vec<SocketAddrV4>);
+
+impl From<Torrent> for Tracker {
+    fn from(value: Torrent) -> Self {
+        Self::new(value.announce, value.info_hash, value.info.length)
+    }
 }
 
 impl Tracker {
@@ -50,6 +64,22 @@ impl Tracker {
     }
 
     pub fn poll(&self) -> Result<TrackerResponse> {
+        let query = TrackerRequest {
+            info_hash: decode_iso_8859_1(&self.info_hash),
+            peer_id: decode_iso_8859_1(&self.peer_id),
+            port: self.port,
+            uploaded: self.uploaded,
+            downloaded: self.downloaded,
+            left: self.left,
+            compact: true,
+        };
+
+        query.send(&self.url).context("failed to poll tracker")
+    }
+}
+
+impl TrackerRequest {
+    pub fn send(self, url: &str) -> Result<TrackerResponse> {
         mod inner {
             use std::{
                 net::{Ipv4Addr, SocketAddrV4},
@@ -60,6 +90,8 @@ impl Tracker {
             use bytes::Bytes;
             use serde::Deserialize;
             use serde_with::{serde_as, DurationSeconds};
+
+            use super::Peers;
 
             #[serde_as]
             #[derive(Debug, Deserialize)]
@@ -86,21 +118,73 @@ impl Tracker {
 
                             Ok(SocketAddrV4::new(
                                 Ipv4Addr::from(*ip_bytes),
-                                u16::from_le_bytes(*port_bytes),
+                                u16::from_be_bytes(*port_bytes),
                             ))
                         })
                         .collect::<Result<Vec<_>>>()?;
 
-                    Ok(Self { interval, peers })
+                    Ok(Self {
+                        interval,
+                        peers: Peers(peers),
+                    })
                 }
             }
         }
 
-        let response = reqwest::blocking::get(&self.url)
-            .context("requesting tracker announce url failed")?
-            .json::<inner::TrackerResponse>()
+        let client = reqwest::blocking::Client::new();
+        let response_bytes = BString::from_iter(
+            client
+                .get(format!("{url}?{}", url_encode(self)?))
+                .send()
+                .context("requesting tracker announce url failed")?
+                .bytes()
+                .context("failed to read tracker announce response bytes")?,
+        );
+
+        let response: inner::TrackerResponse = BencodeValue::try_from_bytes(&response_bytes)
+            .context("failed to parse tracker announce response as bencode value")?
+            .into_deserialize()
             .context("failed to deserialize tracker announce response")?;
 
         TrackerResponse::try_from(response)
     }
+}
+
+impl TrackerResponse {
+    pub fn peers(&self) -> &Peers {
+        &self.peers
+    }
+}
+
+impl std::fmt::Display for Peers {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for peer in self.0.iter() {
+            writeln!(f, "{}", peer)?;
+        }
+        Ok(())
+    }
+}
+
+/// Adapted from [https://github.com/nox/serde_urlencoded/pull/60/files]
+fn url_encode(input: impl Serialize) -> Result<String> {
+    use form_urlencoded::Serializer as UrlEncoder;
+    use serde_urlencoded::Serializer as UrlEncodeSerializer;
+
+    let mut urlencoder = UrlEncoder::new(String::new());
+    urlencoder.encoding_override(Some(&encode_iso_8859_1));
+    input
+        .serialize(UrlEncodeSerializer::new(&mut urlencoder))
+        .context("failed to urlencode input")?;
+    Ok(urlencoder.finish())
+}
+
+fn encode_iso_8859_1(input: &str) -> Cow<[u8]> {
+    input
+        .chars()
+        .map(|c| u8::try_from(u32::from(c)).expect("utf-8 character"))
+        .collect()
+}
+
+fn decode_iso_8859_1(bytes: &[u8]) -> String {
+    bytes.iter().map(|byte| char::from(*byte)).collect()
 }

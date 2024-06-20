@@ -18,4 +18,7 @@ pub enum Command {
     Info {
         path: PathBuf,
     },
+    Peers {
+        path: PathBuf,
+    },
 }
