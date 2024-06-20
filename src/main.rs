@@ -9,6 +9,7 @@ use crate::{
 
 mod command;
 mod torrent;
+mod tracker;
 mod util;
 
 fn main() -> Result<()> {
