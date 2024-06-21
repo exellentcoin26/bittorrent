@@ -63,7 +63,7 @@ impl Tracker {
         }
     }
 
-    pub fn poll(&self) -> Result<TrackerResponse> {
+    pub async fn poll(&self) -> Result<TrackerResponse> {
         let query = TrackerRequest {
             info_hash: decode_iso_8859_1(&self.info_hash),
             peer_id: decode_iso_8859_1(&self.peer_id),
@@ -74,12 +74,15 @@ impl Tracker {
             compact: true,
         };
 
-        query.send(&self.url).context("failed to poll tracker")
+        query
+            .send(&self.url)
+            .await
+            .context("failed to poll tracker")
     }
 }
 
 impl TrackerRequest {
-    pub fn send(self, url: &str) -> Result<TrackerResponse> {
+    pub async fn send(self, url: &str) -> Result<TrackerResponse> {
         mod inner {
             use std::{
                 net::{Ipv4Addr, SocketAddrV4},
@@ -131,13 +134,12 @@ impl TrackerRequest {
             }
         }
 
-        let client = reqwest::blocking::Client::new();
         let response_bytes = BString::from_iter(
-            client
-                .get(format!("{url}?{}", url_encode(self)?))
-                .send()
+            reqwest::get(format!("{url}?{}", url_encode(self)?))
+                .await
                 .context("requesting tracker announce url failed")?
                 .bytes()
+                .await
                 .context("failed to read tracker announce response bytes")?,
         );
 

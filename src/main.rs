@@ -13,7 +13,8 @@ mod torrent;
 mod tracker;
 mod util;
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
@@ -32,7 +33,7 @@ fn main() -> Result<()> {
                 Torrent::from_file_path(path).context("reading torrent from file path failed")?;
             let tracker = Tracker::from(torrent);
 
-            let tracker_response = tracker.poll().context("failed to poll tracker")?;
+            let tracker_response = tracker.poll().await.context("failed to poll tracker")?;
             println!("{}", tracker_response.peers());
         }
     }
