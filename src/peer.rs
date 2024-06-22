@@ -9,6 +9,8 @@ use tokio::{
 
 use crate::util::{InfoHash, PeerId};
 
+mod message;
+
 pub struct Peer<C> {
     socket_addr: SocketAddrV4,
     connection: C,
