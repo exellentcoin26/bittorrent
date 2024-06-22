@@ -49,10 +49,7 @@ impl Torrent {
                 use std::io::Read;
 
                 let mut file = std::fs::File::open(&path).with_context(|| {
-                    format!(
-                        "failed to open torrent file from path `{:?}`",
-                        path.as_ref()
-                    )
+                    format!("opening torrent file from path `{:?}`", path.as_ref())
                 })?;
 
                 let contents = {
@@ -61,12 +58,12 @@ impl Torrent {
                         _ => Vec::new(),
                     };
                     file.read_to_end(&mut content_buf)
-                        .context("failed to read contents of torrent file")?;
+                        .context("reading contents of torrent file")?;
                     content_buf
                 };
 
-                let parsed_contents = BencodeValue::try_from_bytes(&contents)
-                    .context("failed to decode torrent contents")?;
+                let parsed_contents =
+                    BencodeValue::try_from_bytes(&contents).context("decoding torrent contents")?;
 
                 parsed_contents
                     .into_deserialize()
@@ -77,9 +74,9 @@ impl Torrent {
                 use sha1::{Digest, Sha1};
 
                 let torrent_info_bencode_bytes = &*BencodeValue::from_serialize(&self.info)
-                    .context("failed to serialize torrent info")?
+                    .context("serializing torrent info")?
                     .to_byte_string()
-                    .context("failed to serialize bencode value as bytes")?;
+                    .context("serializing bencode value as bytes")?;
 
                 let mut hasher = Sha1::new();
                 hasher.update(torrent_info_bencode_bytes);
@@ -91,7 +88,7 @@ impl Torrent {
 
         let info_hash = file
             .torrent_info_hash()
-            .context("failed to calculate torrent info hash")?;
+            .context("calculating torrent info hash")?;
 
         Ok(Self {
             announce: file.announce,

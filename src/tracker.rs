@@ -76,10 +76,7 @@ impl Tracker {
             compact: true,
         };
 
-        query
-            .send(&self.url)
-            .await
-            .context("failed to poll tracker")
+        query.send(&self.url).await.context("polling tracker")
     }
 
     pub fn info_hash(&self) -> &InfoHash {
@@ -147,16 +144,16 @@ impl TrackerRequest {
         let response_bytes = BString::from_iter(
             reqwest::get(format!("{url}?{}", url_encode(self)?))
                 .await
-                .context("requesting tracker announce url failed")?
+                .context("requesting tracker announce url")?
                 .bytes()
                 .await
-                .context("failed to read tracker announce response bytes")?,
+                .context("reading tracker announce response bytes")?,
         );
 
         let response: inner::TrackerResponse = BencodeValue::try_from_bytes(&response_bytes)
-            .context("failed to parse tracker announce response as bencode value")?
+            .context("parsing tracker announce response as bencode value")?
             .into_deserialize()
-            .context("failed to deserialize tracker announce response")?;
+            .context("deserializing tracker announce response")?;
 
         TrackerResponse::try_from(response)
     }
@@ -186,7 +183,7 @@ fn url_encode(input: impl Serialize) -> Result<String> {
     urlencoder.encoding_override(Some(&encode_iso_8859_1));
     input
         .serialize(UrlEncodeSerializer::new(&mut urlencoder))
-        .context("failed to urlencode input")?;
+        .context("urlencoding input")?;
     Ok(urlencoder.finish())
 }
 

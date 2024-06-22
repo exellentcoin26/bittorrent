@@ -22,25 +22,24 @@ async fn main() -> Result<()> {
     match cli.command {
         Command::Decode { value } => {
             let decoded_value = serde_json::to_value(BencodeValue::try_from_bytes(&value)?)
-                .context("failed to serialize bencode value to json")?;
+                .context("serializing bencode value to json")?;
             println!("{}", decoded_value);
         }
         Command::Info { path } => {
-            let torrent =
-                Torrent::from_file_path(path).context("reading torrent from path failed")?;
+            let torrent = Torrent::from_file_path(path).context("reading torrent from path")?;
             println!("{}", torrent.overview());
         }
         Command::Peers { path } => {
             let torrent =
-                Torrent::from_file_path(path).context("reading torrent from file path failed")?;
+                Torrent::from_file_path(path).context("reading torrent from file path")?;
             let tracker = Tracker::from(torrent);
 
-            let tracker_response = tracker.poll().await.context("failed to poll tracker")?;
+            let tracker_response = tracker.poll().await.context("polling tracker")?;
             println!("{}", tracker_response.peers());
         }
         Command::Handshake { path, peer } => {
             let torrent =
-                Torrent::from_file_path(path).context("reading torrent from file path failed")?;
+                Torrent::from_file_path(path).context("reading torrent from file path")?;
             let tracker = Tracker::from(torrent);
 
             Peer::from_socket(peer)

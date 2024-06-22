@@ -22,7 +22,7 @@ impl Peer {
     pub async fn handshake(&self, info_hash: &InfoHash, client_peer_id: &PeerId) -> Result<()> {
         let mut stream = TcpStream::connect((self.0, self.1))
             .await
-            .context("failed to connect to peer")?;
+            .context("connecting to peer")?;
 
         stream
             .write_all(&prepare_peer_handshake_packet(info_hash, client_peer_id))
@@ -72,7 +72,7 @@ fn parse_peer_handshake_packet(mut input: Bytes) -> PeerHandShakePacket {
     let header = input.copy_to_bytes(header_length as usize);
 
     if header != b"BitTorrent protocol".as_slice() {
-        panic!("Unexpected peer handshake packet!");
+        panic!("Unexpected peer handshake packet.");
     }
 
     // Reserved zero-bytes.
