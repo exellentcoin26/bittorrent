@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{net::SocketAddrV4, path::PathBuf};
 
 use bstr::BString;
 use clap::{Parser, Subcommand};
@@ -20,5 +20,9 @@ pub enum Command {
     },
     Peers {
         path: PathBuf,
+    },
+    Handshake {
+        path: PathBuf,
+        peer: SocketAddrV4,
     },
 }

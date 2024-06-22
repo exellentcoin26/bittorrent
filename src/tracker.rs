@@ -81,6 +81,14 @@ impl Tracker {
             .await
             .context("failed to poll tracker")
     }
+
+    pub fn info_hash(&self) -> &InfoHash {
+        &self.info_hash
+    }
+
+    pub fn peer_id(&self) -> &PeerId {
+        &self.peer_id
+    }
 }
 
 impl TrackerRequest {

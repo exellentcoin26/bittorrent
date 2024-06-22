@@ -4,11 +4,13 @@ use clap::Parser;
 
 use crate::{
     command::{Cli, Command},
+    peer::Peer,
     torrent::Torrent,
     tracker::Tracker,
 };
 
 mod command;
+mod peer;
 mod torrent;
 mod tracker;
 mod util;
@@ -35,6 +37,16 @@ async fn main() -> Result<()> {
 
             let tracker_response = tracker.poll().await.context("failed to poll tracker")?;
             println!("{}", tracker_response.peers());
+        }
+        Command::Handshake { path, peer } => {
+            let torrent =
+                Torrent::from_file_path(path).context("reading torrent from file path failed")?;
+            let tracker = Tracker::from(torrent);
+
+            Peer::from_socket(peer)
+                .handshake(tracker.info_hash(), tracker.peer_id())
+                .await
+                .context("performing peer handshake")?;
         }
     }
 
