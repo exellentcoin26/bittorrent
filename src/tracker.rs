@@ -3,17 +3,19 @@ use std::{borrow::Cow, net::SocketAddrV4, time::Duration};
 use anyhow::{Context, Result};
 use bencode::BencodeValue;
 use bstr::BString;
-use bytes::Bytes;
 use serde::Serialize;
 use serde_with::{serde_as, FromInto};
 
-use crate::torrent::Torrent;
+use crate::{
+    torrent::Torrent,
+    util::{InfoHash, PeerId},
+};
 
 #[derive(Debug)]
 pub struct Tracker {
     url: String,
-    info_hash: Bytes,
-    peer_id: [u8; 20],
+    info_hash: InfoHash,
+    peer_id: PeerId,
     port: u16,
     uploaded: u64,
     downloaded: u64,
@@ -51,7 +53,7 @@ impl From<Torrent> for Tracker {
 }
 
 impl Tracker {
-    pub fn new(announce: String, info_hash: Bytes, size: u64) -> Self {
+    pub fn new(announce: String, info_hash: InfoHash, size: u64) -> Self {
         Self {
             url: announce,
             info_hash,

@@ -1,3 +1,6 @@
+pub type PeerId = [u8; 20];
+pub type InfoHash = [u8; 20];
+
 pub mod serde_with {
     use std::marker::PhantomData;
 
