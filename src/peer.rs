@@ -1,9 +1,6 @@
-use std::{
-    fmt::Write,
-    net::{Ipv4Addr, SocketAddrV4},
-};
+use std::{fmt::Write, net::SocketAddrV4};
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -12,15 +9,31 @@ use tokio::{
 
 use crate::util::{InfoHash, PeerId};
 
-pub struct Peer(Ipv4Addr, u16);
+pub struct Peer<C> {
+    socket_addr: SocketAddrV4,
+    connection: C,
+}
 
-impl Peer {
+pub struct Disconnected;
+pub struct Connected {
+    stream: TcpStream,
+    peer_id: PeerId,
+}
+
+impl Peer<Disconnected> {
     pub fn from_socket(socket: SocketAddrV4) -> Self {
-        Self(*socket.ip(), socket.port())
+        Self {
+            socket_addr: socket,
+            connection: Disconnected,
+        }
     }
 
-    pub async fn handshake(&self, info_hash: &InfoHash, client_peer_id: &PeerId) -> Result<()> {
-        let mut stream = TcpStream::connect((self.0, self.1))
+    pub async fn handshake(
+        self,
+        info_hash: &InfoHash,
+        client_peer_id: &PeerId,
+    ) -> Result<Peer<Connected>> {
+        let mut stream = TcpStream::connect(self.socket_addr)
             .await
             .context("connecting to peer")?;
 
@@ -35,13 +48,28 @@ impl Peer {
             .await
             .context("reading handshake response packet")?;
         let handshake_packet = parse_peer_handshake_packet(buf.into());
-        println!("Peer ID: {}", hex::encode(handshake_packet.peer_id));
 
-        Ok(())
+        if &handshake_packet.info_hash != info_hash {
+            bail!("info hash received from handshake does not match");
+        }
+
+        Ok(Peer {
+            socket_addr: self.socket_addr,
+            connection: Connected {
+                stream,
+                peer_id: handshake_packet.peer_id,
+            },
+        })
     }
 }
 
-impl From<SocketAddrV4> for Peer {
+impl Peer<Connected> {
+    pub fn peer_id(&self) -> &PeerId {
+        &self.connection.peer_id
+    }
+}
+
+impl From<SocketAddrV4> for Peer<Disconnected> {
     fn from(value: SocketAddrV4) -> Self {
         Self::from_socket(value)
     }
