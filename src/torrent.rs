@@ -7,7 +7,7 @@ use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
-use crate::util::ByteChunksWithLength;
+use crate::util::serde_with::ByteChunksWithLength;
 
 #[derive(Debug)]
 pub struct Torrent {
