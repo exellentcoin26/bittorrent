@@ -1,12 +1,12 @@
-use std::{fmt::Write, net::SocketAddrV4};
+use std::net::SocketAddrV4;
 
 use anyhow::{bail, Context, Result};
-use bytes::{Buf, BufMut, Bytes, BytesMut};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
 };
 
+use self::message::PeerHandShakePacket;
 use crate::util::{InfoHash, PeerId};
 
 mod message;
@@ -32,15 +32,15 @@ impl Peer<Disconnected> {
 
     pub async fn handshake(
         self,
-        info_hash: &InfoHash,
-        client_peer_id: &PeerId,
+        info_hash: InfoHash,
+        client_peer_id: PeerId,
     ) -> Result<Peer<Connected>> {
         let mut stream = TcpStream::connect(self.socket_addr)
             .await
             .context("connecting to peer")?;
 
         stream
-            .write_all(&prepare_peer_handshake_packet(info_hash, client_peer_id))
+            .write_all(&PeerHandShakePacket::new(info_hash, client_peer_id).into_bytes())
             .await
             .context("sending handshake packet")?;
 
@@ -49,9 +49,10 @@ impl Peer<Disconnected> {
             .read_exact(&mut buf)
             .await
             .context("reading handshake response packet")?;
-        let handshake_packet = parse_peer_handshake_packet(buf.into());
+        let handshake_packet =
+            PeerHandShakePacket::parse(buf.into()).context("parsing peer handshake packet")?;
 
-        if &handshake_packet.info_hash != info_hash {
+        if handshake_packet.info_hash != info_hash {
             bail!("info hash received from handshake does not match");
         }
 
@@ -74,47 +75,5 @@ impl Peer<Connected> {
 impl From<SocketAddrV4> for Peer<Disconnected> {
     fn from(value: SocketAddrV4) -> Self {
         Self::from_socket(value)
-    }
-}
-
-struct PeerHandShakePacket {
-    info_hash: InfoHash,
-    peer_id: PeerId,
-}
-
-fn prepare_peer_handshake_packet(info_hash: &InfoHash, client_peer_id: &PeerId) -> Bytes {
-    let prepare = || -> Result<Bytes, std::fmt::Error> {
-        let mut buf = BytesMut::with_capacity(68);
-        buf.put_u8(19);
-        buf.write_str("BitTorrent protocol")?;
-        buf.put_u64(0);
-        buf.extend(info_hash);
-        buf.extend(client_peer_id);
-
-        Ok(buf.freeze())
-    };
-
-    prepare().expect("prepared peer handshake buffer should not be empty")
-}
-
-fn parse_peer_handshake_packet(mut input: Bytes) -> PeerHandShakePacket {
-    let header_length = input.get_u8();
-    let header = input.copy_to_bytes(header_length as usize);
-
-    if header != b"BitTorrent protocol".as_slice() {
-        panic!("Unexpected peer handshake packet.");
-    }
-
-    // Reserved zero-bytes.
-    input.get_u64();
-
-    let info_hash = input.copy_to_bytes(20);
-    let peer_id = input.copy_to_bytes(20);
-
-    PeerHandShakePacket {
-        info_hash: *info_hash
-            .first_chunk()
-            .expect("info hash should be 20 bytes"),
-        peer_id: *peer_id.first_chunk().expect("peer id should be 20 bytes"),
     }
 }

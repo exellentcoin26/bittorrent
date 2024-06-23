@@ -43,7 +43,7 @@ async fn main() -> Result<()> {
             let tracker = Tracker::from(torrent);
 
             let peer = Peer::from_socket(peer)
-                .handshake(tracker.info_hash(), tracker.peer_id())
+                .handshake(*tracker.info_hash(), *tracker.peer_id())
                 .await
                 .context("performing peer handshake")?;
             println!("Peer ID: {}", hex::encode(peer.peer_id()))
