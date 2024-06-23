@@ -3,7 +3,7 @@ use bytes::{Buf, BufMut, Bytes, BytesMut};
 
 use crate::util::{InfoHash, PeerId};
 
-enum PeerMessage {
+pub(super) enum PeerMessage {
     Unchoke,
     Interested,
     Bitfield,
@@ -65,7 +65,7 @@ fn parse_piece_payload(mut input: Bytes) -> Result<PeerMessage> {
 }
 
 impl PeerMessage {
-    pub fn parse(mut input: Bytes) -> Result<Self> {
+    pub(super) fn parse(mut input: Bytes) -> Result<Self> {
         let message_id = input.get_u8();
 
         Ok(match message_id {
@@ -87,7 +87,7 @@ impl PeerMessage {
         })
     }
 
-    pub fn into_bytes(self) -> Bytes {
+    pub(super) fn into_bytes(self) -> Bytes {
         let mut buf = BytesMut::new();
 
         match self {
