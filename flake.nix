@@ -2,7 +2,7 @@
   description = "CodeCrafters BitTorrent rust flake";
 
   inputs = {
-    nixpkgs.url = "nixpkgs/release-23.11";
+    nixpkgs.url = "nixpkgs/release-24.05";
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
