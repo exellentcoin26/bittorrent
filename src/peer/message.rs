@@ -1,7 +1,7 @@
 use anyhow::{bail, Result};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 
-use crate::util::{InfoHash, PeerId};
+use crate::util::{PeerId, Sha1Hash};
 
 pub(super) enum PeerMessage {
     Unchoke,
@@ -20,7 +20,7 @@ pub(super) enum PeerMessage {
 }
 
 pub(super) struct PeerHandShakePacket {
-    pub(super) info_hash: InfoHash,
+    pub(super) info_hash: Sha1Hash,
     pub(super) peer_id: PeerId,
 }
 
@@ -122,7 +122,7 @@ impl PeerMessage {
 }
 
 impl PeerHandShakePacket {
-    pub(super) fn new(info_hash: InfoHash, peer_id: PeerId) -> Self {
+    pub(super) fn new(info_hash: Sha1Hash, peer_id: PeerId) -> Self {
         Self { info_hash, peer_id }
     }
 

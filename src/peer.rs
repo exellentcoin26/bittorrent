@@ -7,7 +7,7 @@ use tokio::{
 };
 
 use self::message::PeerHandShakePacket;
-use crate::util::{InfoHash, PeerId};
+use crate::util::{PeerId, Sha1Hash};
 
 mod message;
 
@@ -32,7 +32,7 @@ impl Peer<Disconnected> {
 
     pub async fn handshake(
         self,
-        info_hash: InfoHash,
+        info_hash: Sha1Hash,
         client_peer_id: PeerId,
     ) -> Result<Peer<Connected>> {
         let mut stream = TcpStream::connect(self.socket_addr)

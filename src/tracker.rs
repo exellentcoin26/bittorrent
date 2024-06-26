@@ -8,13 +8,13 @@ use serde_with::{serde_as, FromInto};
 
 use crate::{
     torrent::Torrent,
-    util::{InfoHash, PeerId},
+    util::{PeerId, Sha1Hash},
 };
 
 #[derive(Debug)]
 pub struct Tracker {
     url: String,
-    info_hash: InfoHash,
+    info_hash: Sha1Hash,
     peer_id: PeerId,
     port: u16,
     uploaded: u64,
@@ -53,7 +53,7 @@ impl From<Torrent> for Tracker {
 }
 
 impl Tracker {
-    pub fn new(announce: String, info_hash: InfoHash, size: u64) -> Self {
+    pub fn new(announce: String, info_hash: Sha1Hash, size: u64) -> Self {
         Self {
             url: announce,
             info_hash,
@@ -79,7 +79,7 @@ impl Tracker {
         query.send(&self.url).await.context("polling tracker")
     }
 
-    pub fn info_hash(&self) -> &InfoHash {
+    pub fn info_hash(&self) -> &Sha1Hash {
         &self.info_hash
     }
 

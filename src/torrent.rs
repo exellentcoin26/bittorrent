@@ -7,13 +7,13 @@ use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
-use crate::util::{serde_with::ArrayChunksWithLength, InfoHash, PieceHash};
+use crate::util::{hash_sha1, serde_with::ArrayChunksWithLength, Sha1Hash};
 
 #[derive(Debug)]
 pub struct Torrent {
     pub announce: String,
     pub info: TorrentInfo,
-    pub info_hash: InfoHash,
+    pub info_hash: Sha1Hash,
 }
 
 #[serde_as]
@@ -24,16 +24,16 @@ pub struct TorrentInfo {
     #[serde(rename = "piece length")]
     pub piece_length: u64,
     #[serde_as(as = "ArrayChunksWithLength<20>")]
-    pub pieces: Vec<PieceHash>,
+    pub pieces: Vec<Sha1Hash>,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct TorrentOverview<'a> {
     tracker_url: &'a str,
     length: usize,
-    info_hash: &'a InfoHash,
+    info_hash: &'a Sha1Hash,
     piece_length: usize,
-    pieces: &'a [PieceHash],
+    pieces: &'a [Sha1Hash],
 }
 
 impl Torrent {
@@ -70,17 +70,13 @@ impl Torrent {
                     .context("torrent contents do not match torrent specifications")
             }
 
-            fn torrent_info_hash(&self) -> Result<InfoHash> {
-                use sha1::{Digest, Sha1};
-
+            fn torrent_info_hash(&self) -> Result<Sha1Hash> {
                 let torrent_info_bencode_bytes = &*BencodeValue::from_serialize(&self.info)
                     .context("serializing torrent info")?
                     .to_byte_string()
                     .context("serializing bencode value as bytes")?;
 
-                let mut hasher = Sha1::new();
-                hasher.update(torrent_info_bencode_bytes);
-                Ok(hasher.finalize().into())
+                Ok(hash_sha1(torrent_info_bencode_bytes))
             }
         }
 

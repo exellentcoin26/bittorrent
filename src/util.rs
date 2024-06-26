@@ -1,6 +1,5 @@
 pub type PeerId = [u8; 20];
-pub type InfoHash = [u8; 20];
-pub type PieceHash = [u8; 20];
+pub type Sha1Hash = [u8; 20];
 
 pub mod serde_with {
     use std::marker::PhantomData;
@@ -45,4 +44,12 @@ pub mod serde_with {
             ))
         }
     }
+}
+
+pub fn hash_sha1(value: impl AsRef<[u8]>) -> Sha1Hash {
+    use sha1::{Digest, Sha1};
+
+    let mut hasher = Sha1::new();
+    hasher.update(value.as_ref());
+    hasher.finalize().into()
 }
