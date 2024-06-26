@@ -3,6 +3,7 @@ use bytes::{Buf, BufMut, Bytes, BytesMut};
 
 use crate::util::{PeerId, Sha1Hash};
 
+#[derive(Debug)]
 pub(super) enum PeerMessage {
     Unchoke,
     Interested,
@@ -89,6 +90,7 @@ impl PeerMessage {
 
     pub(super) fn into_bytes(self) -> Bytes {
         let mut buf = BytesMut::new();
+        buf.put_u32(self.byte_size());
 
         match self {
             PeerMessage::Unchoke => buf.put_u8(1),
@@ -103,21 +105,25 @@ impl PeerMessage {
                 buf.put_u32(begin);
                 buf.put_u32(length);
             }
-            PeerMessage::Piece {
-                index,
-                begin,
-                block,
-            } => {
-                buf.put_u8(7);
-                buf.put_u32(index);
-                buf.put_u32(begin);
-                buf.put(block);
-            }
 
-            PeerMessage::Bitfield => unimplemented!("message unsupported for serialization"),
+            PeerMessage::Piece { .. } | PeerMessage::Bitfield => {
+                unimplemented!("message unsupported for serialization")
+            }
         }
 
         buf.freeze()
+    }
+
+    fn byte_size(&self) -> u32 {
+        match self {
+            PeerMessage::Unchoke => 1,
+            PeerMessage::Interested => 1,
+            PeerMessage::Request { .. } => 13,
+
+            PeerMessage::Piece { .. } | PeerMessage::Bitfield => {
+                unimplemented!("message unsupported for serialization")
+            }
+        }
     }
 }
 

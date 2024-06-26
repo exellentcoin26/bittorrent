@@ -10,6 +10,7 @@ pub struct Cli {
 }
 
 #[derive(Debug, Subcommand)]
+#[clap(rename_all = "snake_case")]
 pub enum Command {
     /// Decode the given binary encoded value into a json value.
     Decode {
@@ -24,5 +25,14 @@ pub enum Command {
     Handshake {
         path: PathBuf,
         peer: SocketAddrV4,
+    },
+    DownloadPiece {
+        /// Path to store the downloaded piece.
+        #[arg(short)]
+        output: PathBuf,
+        /// Path to the torrent file.
+        path: PathBuf,
+        /// Index of the piece to download.
+        index: u32,
     },
 }

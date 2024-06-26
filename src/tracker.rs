@@ -46,9 +46,9 @@ pub struct TrackerResponse {
 #[derive(Debug)]
 pub struct Peers(pub Vec<SocketAddrV4>);
 
-impl From<Torrent> for Tracker {
-    fn from(value: Torrent) -> Self {
-        Self::new(value.announce, value.info_hash, value.info.length)
+impl From<&Torrent> for Tracker {
+    fn from(value: &Torrent) -> Self {
+        Self::new(value.announce.clone(), value.info_hash, value.info.length)
     }
 }
 
@@ -171,6 +171,14 @@ impl std::fmt::Display for Peers {
             writeln!(f, "{}", peer)?;
         }
         Ok(())
+    }
+}
+
+impl std::ops::Deref for Peers {
+    type Target = [SocketAddrV4];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 
