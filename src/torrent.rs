@@ -7,7 +7,7 @@ use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
-use crate::util::{serde_with::ByteChunksWithLength, InfoHash};
+use crate::util::{serde_with::ArrayChunksWithLength, InfoHash, PieceHash};
 
 #[derive(Debug)]
 pub struct Torrent {
@@ -23,8 +23,8 @@ pub struct TorrentInfo {
     pub name: BString,
     #[serde(rename = "piece length")]
     pub piece_length: u64,
-    #[serde_as(as = "ByteChunksWithLength<20>")]
-    pub pieces: Vec<Bytes>,
+    #[serde_as(as = "ArrayChunksWithLength<20>")]
+    pub pieces: Vec<PieceHash>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -33,7 +33,7 @@ pub struct TorrentOverview<'a> {
     length: usize,
     info_hash: &'a InfoHash,
     piece_length: usize,
-    pieces: &'a [Bytes],
+    pieces: &'a [PieceHash],
 }
 
 impl Torrent {
