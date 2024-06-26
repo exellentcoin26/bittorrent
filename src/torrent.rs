@@ -22,7 +22,7 @@ pub struct TorrentInfo {
     pub length: u64,
     pub name: BString,
     #[serde(rename = "piece length")]
-    pub piece_length: u64,
+    pub piece_length: u32,
     #[serde_as(as = "ArrayChunksWithLength<20>")]
     pub pieces: Vec<Sha1Hash>,
 }
