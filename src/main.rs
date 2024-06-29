@@ -4,7 +4,7 @@ use clap::Parser;
 
 use crate::{
     command::{Cli, Command},
-    peer::Peer,
+    peer::{piece::PieceDescriptor, Peer},
     torrent::Torrent,
     tracker::Tracker,
 };
@@ -72,11 +72,11 @@ async fn main() -> Result<()> {
                 .pieces
                 .get(index as usize)
                 .context("piece index outside range")?;
-            peer.download_piece(
+            peer.download_piece(PieceDescriptor::new(
                 index,
                 calculate_piece_length(torrent.info.piece_length, torrent.info.length, index)?,
                 *piece_hash,
-            )
+            ))
             .await
             .context("downloading a single piece")?;
         }

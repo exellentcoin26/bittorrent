@@ -1,19 +1,16 @@
 use std::net::SocketAddrV4;
 
 use anyhow::{bail, Context, Result};
-use bytes::Bytes;
-use tempfile::Builder as TempFileBuilder;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
 };
 
 use self::message::{PeerHandShakePacket, PeerMessage};
-use crate::util::{hash_sha1, PeerId, Sha1Hash};
+use crate::util::{PeerId, Sha1Hash};
 
 mod message;
-
-const PIECE_BLOCK_SIZE: u32 = 16 * 1024;
+pub mod piece;
 
 pub struct Peer<C> {
     socket_addr: SocketAddrV4,
@@ -109,125 +106,15 @@ impl Peer<Disconnected> {
     }
 }
 
-async fn read_piece_block(stream: &mut TcpStream) -> Result<PieceBlockResponse> {
-    let mut buf = prepare_buffer_with_length(stream).await?;
-
-    stream
-        .read_exact(&mut buf)
-        .await
-        .context("reading piece block message")?;
-    Ok(match PeerMessage::parse(buf.into()) {
-        Ok(PeerMessage::Piece {
-            index,
-            begin,
-            block,
-        }) => PieceBlockResponse {
-            index,
-            begin,
-            block,
-        },
-        Err(err) => return Err(err).context("parsing piece block message"),
-        _ => bail!("unexpected peer message"),
-    })
-}
-
 impl Peer<Connected> {
     pub fn peer_id(&self) -> &PeerId {
         &self.connection.peer_id
-    }
-
-    pub async fn download_piece(&mut self, index: u32, length: u32, hash: Sha1Hash) -> Result<()> {
-        use std::io::Write;
-
-        let stream = &mut self.connection.stream;
-
-        // Request the piece.
-        let mut buf = vec![0u8; length as usize];
-        for req_block in generate_piece_block_requests(index, length) {
-            // Request the block in the piece.
-            stream
-                .write_all(&req_block.to_message().into_bytes())
-                .await
-                .context("sending piece block request")?;
-
-            // Receive the block.
-            let rec_block = read_piece_block(stream)
-                .await
-                .context("reading piece block message")?;
-
-            if rec_block.index != req_block.index {
-                bail!("received block piece index does not match requested index");
-            }
-            if rec_block.begin != req_block.begin {
-                bail!("received block piece offset does not match requested offset");
-            }
-
-            // Accumulate the values.
-            buf[rec_block.begin as usize..(rec_block.begin + req_block.length) as usize]
-                .copy_from_slice(&rec_block.block);
-        }
-
-        // Check the piece hash.
-        if hash != hash_sha1(&buf) {
-            bail!("piece hash does not match hash from torrent");
-        }
-
-        // Store piece on disk for now.
-        let mut file = TempFileBuilder::new()
-            .tempfile()
-            .context("creating temporary file for piece")?;
-        file.write_all(&buf).context("writing piece to tempfile")?;
-
-        println!("Piece {index} downloaded to {}.", file.path().display());
-
-        Ok(())
     }
 }
 
 async fn prepare_buffer_with_length(stream: &mut TcpStream) -> Result<Vec<u8>> {
     let message_length = stream.read_u32().await.context("reading message length")?;
     Ok(vec![0u8; message_length as usize])
-}
-
-fn generate_piece_block_requests(
-    index: u32,
-    length: u32,
-) -> impl Iterator<Item = PieceBlockRequest> {
-    let amount = (f64::from(length) / f64::from(PIECE_BLOCK_SIZE)).ceil() as usize;
-
-    (0..amount).map(move |i| {
-        let offset =
-            u32::try_from(i * PIECE_BLOCK_SIZE as usize).expect("offset should fit in u32");
-        let block_size = (length - offset).min(PIECE_BLOCK_SIZE);
-
-        PieceBlockRequest {
-            index,
-            begin: offset,
-            length: block_size,
-        }
-    })
-}
-
-struct PieceBlockRequest {
-    index: u32,
-    begin: u32,
-    length: u32,
-}
-
-struct PieceBlockResponse {
-    index: u32,
-    begin: u32,
-    block: Bytes,
-}
-
-impl PieceBlockRequest {
-    fn to_message(&self) -> PeerMessage {
-        PeerMessage::Request {
-            index: self.index,
-            begin: self.begin,
-            length: self.length,
-        }
-    }
 }
 
 impl From<SocketAddrV4> for Peer<Disconnected> {
