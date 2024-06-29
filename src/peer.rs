@@ -26,6 +26,36 @@ pub struct Connected {
     peer_id: PeerId,
 }
 
+async fn read_bitfield(stream: &mut TcpStream) -> Result<()> {
+    let mut buf = prepare_buffer_with_length(stream).await?;
+
+    stream
+        .read_exact(&mut buf)
+        .await
+        .context("reading bitfield message")?;
+    match PeerMessage::parse(buf.into()) {
+        Ok(PeerMessage::Bitfield) => (),
+        Err(err) => return Err(err).context("parsing peer bitfield message"),
+        _ => bail!("unexpected peer message"),
+    }
+    Ok(())
+}
+
+async fn read_unchoke(stream: &mut TcpStream) -> Result<()> {
+    let mut buf = prepare_buffer_with_length(stream).await?;
+
+    stream
+        .read_exact(&mut buf)
+        .await
+        .context("reading unchoke message")?;
+    match PeerMessage::parse(buf.into()) {
+        Ok(PeerMessage::Unchoke) => (),
+        Err(err) => return Err(err).context("parsing unchoke message"),
+        _ => bail!("unexpected peer message"),
+    }
+    Ok(())
+}
+
 impl Peer<Disconnected> {
     pub fn from_socket(socket: SocketAddrV4) -> Self {
         Self {
@@ -60,6 +90,15 @@ impl Peer<Disconnected> {
             bail!("info hash received from handshake does not match");
         }
 
+        read_bitfield(&mut stream).await?;
+
+        stream
+            .write_all(&PeerMessage::Interested.into_bytes())
+            .await
+            .context("sending peer interested message")?;
+
+        read_unchoke(&mut stream).await?;
+
         Ok(Peer {
             socket_addr: self.socket_addr,
             connection: Connected {
@@ -68,41 +107,6 @@ impl Peer<Disconnected> {
             },
         })
     }
-}
-
-async fn prepare_buffer_with_length(stream: &mut TcpStream) -> Result<Vec<u8>> {
-    let message_length = stream.read_u32().await.context("reading message length")?;
-    Ok(vec![0u8; message_length as usize])
-}
-
-async fn read_bitfield(stream: &mut TcpStream) -> Result<()> {
-    let mut buf = prepare_buffer_with_length(stream).await?;
-
-    stream
-        .read_exact(&mut buf)
-        .await
-        .context("reading bitfield message")?;
-    match PeerMessage::parse(buf.into()) {
-        Ok(PeerMessage::Bitfield) => (),
-        Err(err) => return Err(err).context("parsing peer bitfield message"),
-        _ => bail!("unexpected peer message"),
-    }
-    Ok(())
-}
-
-async fn read_unchoke(stream: &mut TcpStream) -> Result<()> {
-    let mut buf = prepare_buffer_with_length(stream).await?;
-
-    stream
-        .read_exact(&mut buf)
-        .await
-        .context("reading unchoke message")?;
-    match PeerMessage::parse(buf.into()) {
-        Ok(PeerMessage::Unchoke) => (),
-        Err(err) => return Err(err).context("parsing unchoke message"),
-        _ => bail!("unexpected peer message"),
-    }
-    Ok(())
 }
 
 async fn read_piece_block(stream: &mut TcpStream) -> Result<PieceBlockResponse> {
@@ -136,18 +140,6 @@ impl Peer<Connected> {
         use std::io::Write;
 
         let stream = &mut self.connection.stream;
-
-        // Receive bitfield message.
-        read_bitfield(stream).await?;
-
-        // Send interested message.
-        stream
-            .write_all(&PeerMessage::Interested.into_bytes())
-            .await
-            .context("sending peer interested message")?;
-
-        // Receive unchoke message.
-        read_unchoke(stream).await?;
 
         // Request the piece.
         let mut buf = vec![0u8; length as usize];
@@ -191,6 +183,11 @@ impl Peer<Connected> {
 
         Ok(())
     }
+}
+
+async fn prepare_buffer_with_length(stream: &mut TcpStream) -> Result<Vec<u8>> {
+    let message_length = stream.read_u32().await.context("reading message length")?;
+    Ok(vec![0u8; message_length as usize])
 }
 
 fn generate_piece_block_requests(
