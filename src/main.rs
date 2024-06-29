@@ -48,11 +48,7 @@ async fn main() -> Result<()> {
                 .context("performing peer handshake")?;
             println!("Peer ID: {}", hex::encode(peer.peer_id()))
         }
-        Command::DownloadPiece {
-            output,
-            path,
-            index,
-        } => {
+        Command::DownloadPiece { path, index } => {
             let torrent =
                 Torrent::from_file_path(path).context("reading torrent from file path")?;
             let tracker = Tracker::from(&torrent);
@@ -71,11 +67,27 @@ async fn main() -> Result<()> {
                 .await
                 .context("performing peer handshake")?;
 
-            peer.download_piece(0, torrent.info.piece_length, torrent.info.pieces[0])
-                .await
-                .context("downloading a single piece")?;
+            let piece_hash = torrent
+                .info
+                .pieces
+                .get(index as usize)
+                .context("piece index outside range")?;
+            peer.download_piece(
+                index,
+                calculate_piece_length(torrent.info.piece_length, torrent.info.length, index)?,
+                *piece_hash,
+            )
+            .await
+            .context("downloading a single piece")?;
         }
     }
 
     Ok(())
+}
+
+fn calculate_piece_length(piece_length: u32, torrent_length: u64, piece_index: u32) -> Result<u32> {
+    Ok(piece_length.min(
+        u32::try_from(torrent_length - u64::from(piece_index * piece_length))
+            .context("piece length should fit in 32 bits")?,
+    ))
 }

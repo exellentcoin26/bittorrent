@@ -174,7 +174,6 @@ impl Peer<Connected> {
 
         // Store piece on disk for now.
         let mut file = TempFileBuilder::new()
-            .prefix(&format!("torrent-piece-{index}"))
             .tempfile()
             .context("creating temporary file for piece")?;
         file.write_all(&buf).context("writing piece to tempfile")?;

@@ -27,9 +27,6 @@ pub enum Command {
         peer: SocketAddrV4,
     },
     DownloadPiece {
-        /// Path to store the downloaded piece.
-        #[arg(short)]
-        output: PathBuf,
         /// Path to the torrent file.
         path: PathBuf,
         /// Index of the piece to download.
