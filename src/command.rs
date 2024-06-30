@@ -32,4 +32,11 @@ pub enum Command {
         /// Index of the piece to download.
         index: u32,
     },
+    Download {
+        /// Path to download the file to.
+        #[arg(short)]
+        output: PathBuf,
+        /// Path to the torrent file.
+        path: PathBuf,
+    },
 }

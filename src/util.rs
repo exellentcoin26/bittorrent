@@ -1,3 +1,5 @@
+use anyhow::{Context, Result};
+
 pub type PeerId = [u8; 20];
 pub type Sha1Hash = [u8; 20];
 
@@ -52,4 +54,11 @@ pub fn hash_sha1(value: impl AsRef<[u8]>) -> Sha1Hash {
     let mut hasher = Sha1::new();
     hasher.update(value.as_ref());
     hasher.finalize().into()
+}
+
+pub fn calculate_piece_length(piece_length: u32, torrent_length: u64, piece_index: u32) -> u32 {
+    piece_length.min(
+        u32::try_from(torrent_length - u64::from(piece_index * piece_length))
+            .expect("piece length should fit in 32 bits"),
+    )
 }

@@ -4,12 +4,15 @@ use clap::Parser;
 
 use crate::{
     command::{Cli, Command},
+    downloader::TorrentDownloader,
     peer::{Peer, PieceDescriptor},
     torrent::Torrent,
     tracker::Tracker,
+    util::calculate_piece_length,
 };
 
 mod command;
+mod downloader;
 mod peer;
 mod torrent;
 mod tracker;
@@ -74,20 +77,32 @@ async fn main() -> Result<()> {
                 .context("piece index outside range")?;
             peer.download_piece(PieceDescriptor::new(
                 index,
-                calculate_piece_length(torrent.info.piece_length, torrent.info.length, index)?,
+                calculate_piece_length(torrent.info.piece_length, torrent.info.length, index),
                 *piece_hash,
             ))
             .await
             .context("downloading a single piece")?;
         }
+        Command::Download { output, path } => {
+            let torrent =
+                Torrent::from_file_path(&path).context("reading torrent from file path")?;
+            let tracker = Tracker::from(&torrent);
+            let tracker_poll = tracker.poll().await.context("polling tracker")?;
+
+            TorrentDownloader::new(
+                torrent,
+                tracker_poll.peers().iter().copied(),
+                *tracker.peer_id(),
+            )
+            .await
+            .context("initializing downloader")?
+            .download(&output)
+            .await
+            .context("downloading torrent")?;
+
+            println!("Downloaded {} to {}", path.display(), output.display());
+        }
     }
 
     Ok(())
-}
-
-fn calculate_piece_length(piece_length: u32, torrent_length: u64, piece_index: u32) -> Result<u32> {
-    Ok(piece_length.min(
-        u32::try_from(torrent_length - u64::from(piece_index * piece_length))
-            .context("piece length should fit in 32 bits")?,
-    ))
 }
