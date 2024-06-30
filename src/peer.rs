@@ -10,7 +10,9 @@ use self::message::{PeerHandShakePacket, PeerMessage};
 use crate::util::{PeerId, Sha1Hash};
 
 mod message;
-pub mod piece;
+mod piece;
+
+pub use self::piece::PieceDescriptor;
 
 pub struct Peer<C> {
     socket_addr: SocketAddrV4,

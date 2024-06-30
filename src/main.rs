@@ -4,7 +4,7 @@ use clap::Parser;
 
 use crate::{
     command::{Cli, Command},
-    peer::{piece::PieceDescriptor, Peer},
+    peer::{Peer, PieceDescriptor},
     torrent::Torrent,
     tracker::Tracker,
 };
