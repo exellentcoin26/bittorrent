@@ -51,7 +51,13 @@ async fn main() -> Result<()> {
                 .context("performing peer handshake")?;
             println!("Peer ID: {}", hex::encode(peer.peer_id()))
         }
-        Command::DownloadPiece { path, index } => {
+        Command::DownloadPiece {
+            output,
+            path,
+            index,
+        } => {
+            use std::io::Write;
+
             let torrent =
                 Torrent::from_file_path(path).context("reading torrent from file path")?;
             let tracker = Tracker::from(&torrent);
@@ -75,13 +81,21 @@ async fn main() -> Result<()> {
                 .pieces
                 .get(index as usize)
                 .context("piece index outside range")?;
-            peer.download_piece(PieceDescriptor::new(
-                index,
-                calculate_piece_length(torrent.info.piece_length, torrent.info.length, index),
-                *piece_hash,
-            ))
-            .await
-            .context("downloading a single piece")?;
+            let piece = peer
+                .download_piece(PieceDescriptor::new(
+                    index,
+                    calculate_piece_length(torrent.info.piece_length, torrent.info.length, index),
+                    *piece_hash,
+                ))
+                .await
+                .context("downloading a single piece")?;
+
+            let mut file = std::fs::File::create(&output)
+                .context("creating file to download torrent piece to")?;
+            file.write_all(&piece)
+                .context("writing to torrent piece output file")?;
+
+            println!("Piece {index} downloaded to {}.", output.display());
         }
         Command::Download { output, path } => {
             let torrent =

@@ -56,8 +56,7 @@ impl Peer<Connected> {
             length,
             hash,
         }: PieceDescriptor,
-    ) -> Result<()> {
-        use std::io::Write;
+    ) -> Result<Vec<u8>> {
         use tokio::io::AsyncWriteExt;
 
         let stream = &mut self.connection.stream;
@@ -88,15 +87,7 @@ impl Peer<Connected> {
             bail!("piece hash does not match hash from torrent");
         }
 
-        // Store piece on disk for now.
-        let mut file = TempFileBuilder::new()
-            .tempfile()
-            .context("creating temporary file for piece")?;
-        file.write_all(&buf).context("writing piece to tempfile")?;
-
-        println!("Piece {index} downloaded to {}.", file.path().display());
-
-        Ok(())
+        Ok(buf)
     }
 }
 
