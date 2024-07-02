@@ -39,11 +39,11 @@ struct TrackerRequest {
 
 #[derive(Debug)]
 pub struct TrackerResponse {
-    interval: Duration,
-    peers: Peers,
+    pub interval: Duration,
+    pub peers: Peers,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Peers(pub Vec<SocketAddrV4>);
 
 impl From<&Torrent> for Tracker {
@@ -90,6 +90,8 @@ impl Tracker {
 
 impl TrackerRequest {
     pub async fn send(self, url: &str) -> Result<TrackerResponse> {
+        println!("Sending request to tracker");
+
         mod inner {
             use std::{
                 net::{Ipv4Addr, SocketAddrV4},
@@ -159,12 +161,6 @@ impl TrackerRequest {
     }
 }
 
-impl TrackerResponse {
-    pub fn peers(&self) -> &Peers {
-        &self.peers
-    }
-}
-
 impl std::fmt::Display for Peers {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for peer in self.0.iter() {
@@ -179,6 +175,12 @@ impl std::ops::Deref for Peers {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl Peers {
+    pub fn into_socket_addrs(self) -> Vec<SocketAddrV4> {
+        self.0
     }
 }
 

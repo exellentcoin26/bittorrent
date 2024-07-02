@@ -75,7 +75,7 @@ impl Command {
                 let tracker = Tracker::from(&torrent);
 
                 let tracker_response = tracker.poll().await.context("polling tracker")?;
-                println!("{}", tracker_response.peers());
+                println!("{}", tracker_response.peers);
             }
             Command::Handshake { path, peer } => {
                 let torrent =
@@ -96,19 +96,13 @@ impl Command {
             Command::Download { output, path } => {
                 let torrent =
                     Torrent::from_file_path(&path).context("reading torrent from file path")?;
-                let tracker = Tracker::from(&torrent);
-                let tracker_poll = tracker.poll().await.context("polling tracker")?;
 
-                TorrentDownloader::new(
-                    torrent,
-                    tracker_poll.peers().iter().copied(),
-                    *tracker.peer_id(),
-                )
-                .await
-                .context("initializing downloader")?
-                .download(&output)
-                .await
-                .context("downloading torrent")?;
+                TorrentDownloader::new(torrent)
+                    .await
+                    .context("initializing downloader")?
+                    .download(&output)
+                    .await
+                    .context("downloading torrent")?;
 
                 println!("Downloaded {} to {}", path.display(), output.display());
             }
@@ -129,7 +123,7 @@ async fn download_piece(output: PathBuf, path: PathBuf, index: u32) -> Result<()
         .poll()
         .await
         .context("polling tracker")?
-        .peers()
+        .peers
         .first()
         .context("no peer found")?;
 
