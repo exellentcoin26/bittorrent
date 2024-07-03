@@ -114,6 +114,12 @@ impl Peer<Connected> {
     }
 }
 
+impl<C> Peer<C> {
+    pub fn socket_addr(&self) -> SocketAddrV4 {
+        self.socket_addr
+    }
+}
+
 async fn prepare_buffer_with_length(stream: &mut TcpStream) -> Result<Vec<u8>> {
     let message_length = stream.read_u32().await.context("reading message length")?;
     Ok(vec![0u8; message_length as usize])
