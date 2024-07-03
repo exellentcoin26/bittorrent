@@ -8,6 +8,7 @@ use crate::util::{hash_sha1, Sha1Hash};
 
 const PIECE_BLOCK_SIZE: u32 = 16 * 1024;
 
+#[derive(Clone)]
 pub struct PieceDescriptor {
     pub index: u32,
     pub length: u32,

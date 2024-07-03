@@ -1,14 +1,14 @@
 use std::{
-    collections::{HashSet, VecDeque},
+    collections::{HashMap, HashSet, VecDeque},
     net::SocketAddrV4,
     path::Path,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use anyhow::{Context, Result};
 use tokio::{
     sync::{mpsc, watch},
-    task::{JoinHandle, JoinSet},
+    task::{AbortHandle, JoinHandle, JoinSet},
 };
 
 use crate::{
@@ -20,6 +20,7 @@ use crate::{
 };
 
 const MAX_CONCURRENT_DOWNLOADS: u32 = 20;
+const PIECE_DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(5);
 
 pub struct TorrentDownloader {
     piece_queue: VecDeque<PieceDescriptor>,
@@ -91,7 +92,7 @@ fn spawn_tracker_poller(
 }
 
 async fn fetch_new_peers<'a>(
-    active_peers: &'a HashSet<SocketAddrV4>,
+    active_peers: &'a HashMap<SocketAddrV4, PieceDownloadPending>,
     tracker_rx: &mut watch::Receiver<Option<Peers>>,
 ) -> Option<impl Iterator<Item = SocketAddrV4> + 'a> {
     let Some(usable_peers) = tracker_rx.borrow_and_update().clone() else {
@@ -103,7 +104,7 @@ async fn fetch_new_peers<'a>(
         usable_peers
             .into_socket_addrs()
             .into_iter()
-            .filter(|p| !active_peers.contains(p)),
+            .filter(|p| !active_peers.contains_key(p)),
     )
 }
 
@@ -113,26 +114,51 @@ fn spawn_piece_download_task(
     info_hash: Sha1Hash,
     client_peer_id: PeerId,
     handles: &mut JoinSet<PieceDownloadResult>,
-) {
+) -> AbortHandle {
     handles.spawn(async move {
-        let peer = match Peer::from_socket(peer_socket_addr)
+        let Ok(mut peer) = Peer::from_socket(peer_socket_addr)
             .handshake(info_hash, client_peer_id)
             .await
-        {
-            Ok(p) => p,
-            Err(_) => {
-                return PieceDownloadResult::Error {
-                    peer_socket_addr,
-                    piece_des,
-                }
-            }
+        else {
+            return PieceDownloadResult::Error {
+                peer_socket_addr,
+                piece_des,
+            };
+        };
+
+        let Ok(piece_bytes) = peer.download_piece(piece_des.clone()).await else {
+            return PieceDownloadResult::Error {
+                peer_socket_addr,
+                piece_des,
+            };
         };
 
         PieceDownloadResult::Success {
             peer,
-            piece: (piece_des, Vec::new()),
+            piece: (piece_des, piece_bytes),
         }
-    });
+    })
+}
+
+fn check_piece_download_timeout<'a>(
+    active_peers: impl IntoIterator<Item = &'a PieceDownloadPending>,
+    piece_queue: &mut VecDeque<PieceDescriptor>,
+) {
+    let now = Instant::now();
+    for PieceDownloadPending {
+        started_at,
+        abort_handle,
+        piece_des,
+    } in active_peers.into_iter()
+    {
+        if now.duration_since(*started_at) < PIECE_DOWNLOAD_TIMEOUT {
+            continue;
+        }
+
+        println!("Timeout occurs!");
+        abort_handle.abort();
+        piece_queue.push_back(piece_des.clone());
+    }
 }
 
 impl TorrentDownloader {
@@ -175,7 +201,7 @@ impl TorrentDownloader {
         let client_peer_id = *self.tracker.peer_id();
 
         let (tracker_tx, mut tracker_rx) = watch::channel(None);
-        let mut active_peers: HashSet<SocketAddrV4> = HashSet::new();
+        let mut active_peers = HashMap::new();
 
         let tracker_handle = spawn_tracker_poller(self.tracker, tracker_tx);
 
@@ -187,7 +213,7 @@ impl TorrentDownloader {
                 continue;
             };
 
-            let mut new_active_peers = HashSet::new();
+            let mut new_active_peers = HashMap::new();
             // Start a task for every peer that is inactive.
             for peer in new_peers {
                 let piece_des = match self.piece_queue.pop_front() {
@@ -197,9 +223,22 @@ impl TorrentDownloader {
 
                 println!("Taking piece descriptor from the queue");
 
-                spawn_piece_download_task(peer, piece_des, info_hash, client_peer_id, &mut handles);
+                let handle = spawn_piece_download_task(
+                    peer,
+                    piece_des.clone(),
+                    info_hash,
+                    client_peer_id,
+                    &mut handles,
+                );
 
-                new_active_peers.insert(peer);
+                new_active_peers.insert(
+                    peer,
+                    PieceDownloadPending {
+                        started_at: Instant::now(),
+                        abort_handle: handle,
+                        piece_des,
+                    },
+                );
             }
 
             active_peers.extend(new_active_peers);
@@ -209,17 +248,19 @@ impl TorrentDownloader {
                 println!("Task finished!");
                 match res {
                     PieceDownloadResult::Success { peer, piece } => {
-                        assert!(active_peers.remove(&peer.socket_addr()));
+                        assert!(active_peers.remove(&peer.socket_addr()).is_some());
                     }
                     PieceDownloadResult::Error {
                         peer_socket_addr,
                         piece_des,
                     } => {
-                        assert!(active_peers.remove(&peer_socket_addr));
+                        assert!(active_peers.remove(&peer_socket_addr).is_some());
                         self.piece_queue.push_back(piece_des);
                     }
                 }
             }
+
+            check_piece_download_timeout(active_peers.values(), &mut self.piece_queue);
 
             if active_peers.is_empty() && self.piece_queue.is_empty() {
                 break;
@@ -232,6 +273,12 @@ impl TorrentDownloader {
 
         Ok(())
     }
+}
+
+struct PieceDownloadPending {
+    started_at: Instant,
+    abort_handle: AbortHandle,
+    piece_des: PieceDescriptor,
 }
 
 enum PieceDownloadResult {
