@@ -14,8 +14,6 @@ bytes = { version = "1.3.0", features = ["serde"] }
 bstr = { version = "1.9.1", features = ["serde"] }
 # Creating a cli
 clap = { version = "4.0.32", features = ["derive"] }
-# Async MCMP work stealing queue
-crossbeam-deque = "0.8.5"
 # Helpers for deriving trivial traits
 derive_more = "0.99.17"
 # Help writing byte string literals to buffers
