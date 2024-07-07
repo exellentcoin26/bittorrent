@@ -1,13 +1,13 @@
 use std::{
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{HashMap, VecDeque},
     net::SocketAddrV4,
     path::Path,
     time::{Duration, Instant},
 };
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use tokio::{
-    sync::{mpsc, watch},
+    sync::watch,
     task::{AbortHandle, JoinHandle, JoinSet},
 };
 
@@ -19,7 +19,7 @@ use crate::{
     util::{calculate_piece_length, PeerId},
 };
 
-const MAX_CONCURRENT_DOWNLOADS: u32 = 20;
+const MAX_CONCURRENT_DOWNLOADS: usize = 20;
 const PIECE_DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(5);
 
 pub struct TorrentDownloader {
@@ -198,7 +198,6 @@ impl TorrentDownloader {
         let mut handles = JoinSet::new();
 
         let info_hash = *self.tracker.info_hash();
-        let client_peer_id = *self.tracker.peer_id();
 
         let (tracker_tx, mut tracker_rx) = watch::channel(None);
         let mut active_peers = HashMap::new();
@@ -216,6 +215,11 @@ impl TorrentDownloader {
             let mut new_active_peers = HashMap::new();
             // Start a task for every peer that is inactive.
             for peer in new_peers {
+                if active_peers.len() + new_active_peers.len() >= MAX_CONCURRENT_DOWNLOADS {
+                    println!("Max concurrent downloads reached!");
+                    break;
+                }
+
                 let piece_des = match self.piece_queue.pop_front() {
                     Some(p) => p,
                     None => break 'main,
@@ -227,7 +231,7 @@ impl TorrentDownloader {
                     peer,
                     piece_des.clone(),
                     info_hash,
-                    client_peer_id,
+                    self.client_peer_id,
                     &mut handles,
                 );
 
@@ -247,7 +251,8 @@ impl TorrentDownloader {
             while let Some(Ok(res)) = handles.try_join_next() {
                 println!("Task finished!");
                 match res {
-                    PieceDownloadResult::Success { peer, piece } => {
+                    PieceDownloadResult::Success { peer, .. } => {
+                        // TODO: Save piece to file.
                         assert!(active_peers.remove(&peer.socket_addr()).is_some());
                     }
                     PieceDownloadResult::Error {
@@ -266,7 +271,7 @@ impl TorrentDownloader {
                 break;
             }
 
-            tokio::time::sleep(Duration::from_millis(100)).await;
+            tokio::time::sleep(Duration::from_millis(300)).await;
         }
 
         tracker_handle.abort();
