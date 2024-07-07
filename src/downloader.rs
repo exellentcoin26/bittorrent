@@ -185,16 +185,6 @@ impl TorrentDownloader {
     }
 
     pub async fn download(mut self, _output_location: impl AsRef<Path>) -> Result<()> {
-        // For every peer available to download, start a task that downloads and returns the piece.
-        // If a new peer becomes available, immediatly pick up a new task.
-        // A peer should be donated to a task and returned when done downloading that piece.
-        //
-        // # Idea
-        //
-        // Tracker polling task that inserts peers as they become available.
-        // Main loop -> Checks channel for new peers, creates tasks and checks if tasks have been
-        // completed.
-
         let mut handles = JoinSet::new();
 
         let info_hash = *self.tracker.info_hash();
