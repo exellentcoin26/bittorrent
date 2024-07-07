@@ -1,11 +1,12 @@
 use std::{
     collections::{HashMap, VecDeque},
+    io::{Seek, Write},
     net::SocketAddrV4,
     path::Path,
     time::{Duration, Instant},
 };
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use tokio::{
     sync::watch,
     task::{AbortHandle, JoinHandle, JoinSet},
@@ -26,6 +27,7 @@ pub struct TorrentDownloader {
     piece_queue: VecDeque<PieceDescriptor>,
     tracker: Tracker,
     client_peer_id: PeerId,
+    torrent_piece_length: u32,
 }
 
 fn generate_piece_queue(
@@ -158,6 +160,20 @@ fn check_piece_download_timeout<'a>(
     }
 }
 
+fn write_piece_to_writer<W: Write + Seek>(
+    piece: Vec<u8>,
+    piece_des: PieceDescriptor,
+    torrent_piece_length: u32,
+    writer: &mut W,
+) -> Result<()> {
+    writer
+        .seek(std::io::SeekFrom::Start(u64::from(
+            piece_des.index * torrent_piece_length,
+        )))
+        .context("seeking position in writer")?;
+    writer.write_all(&piece).context("writing to writer")
+}
+
 impl TorrentDownloader {
     pub async fn new(
         torrent: Torrent,
@@ -178,10 +194,17 @@ impl TorrentDownloader {
             piece_queue,
             tracker,
             client_peer_id,
+            torrent_piece_length: torrent.info.piece_length,
         })
     }
 
-    pub async fn download(mut self, _output_location: impl AsRef<Path>) -> Result<()> {
+    pub async fn download_to_location(self, location: impl AsRef<Path>) -> Result<()> {
+        let mut file =
+            std::fs::File::create(location).context("creating file for downloading torrent")?;
+        self.download(&mut file).await
+    }
+
+    pub async fn download<W: Write + Seek>(mut self, writer: &mut W) -> Result<()> {
         let mut handles = JoinSet::new();
 
         let info_hash = *self.tracker.info_hash();
@@ -236,8 +259,13 @@ impl TorrentDownloader {
             while let Some(Ok(res)) = handles.try_join_next() {
                 tracing::trace!("Piece download task finished");
                 match res {
-                    PieceDownloadResult::Success { peer, .. } => {
-                        // TODO: Save piece to file.
+                    PieceDownloadResult::Success {
+                        peer,
+                        piece: (piece_des, piece),
+                    } => {
+                        write_piece_to_writer(piece, piece_des, self.torrent_piece_length, writer)
+                            .context("writing piece to writer")?;
+
                         assert!(active_peers.remove(&peer.socket_addr()).is_some());
                     }
                     PieceDownloadResult::Error {

@@ -97,7 +97,7 @@ impl Command {
                 TorrentDownloader::new(torrent)
                     .await
                     .context("initializing downloader")?
-                    .download(&output)
+                    .download_to_location(&output)
                     .await
                     .context("downloading torrent")?;
 
