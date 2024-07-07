@@ -66,26 +66,23 @@ fn spawn_tracker_poller(
 
         // Close this loop using task aborting.
         loop {
-            println!("Polling tracker");
+            tracing::debug!("Polling tracker");
             let TrackerResponse { peers, interval } = match tracker.poll().await {
                 Ok(res) => res,
                 Err(err) => {
-                    eprintln!("{}", err);
+                    tracing::error!("{}", err);
 
                     if let Some(last_interval) = last_interval {
-                        println!("Failed to poll tracker");
+                        tracing::error!("Failed to poll tracker");
                         tokio::time::sleep(last_interval).await;
                     }
                     continue;
                 }
             };
 
-            dbg!(interval);
             last_interval = Some(interval);
 
-            println!("Sending value");
             tracker_tx.send_replace(Some(peers));
-            println!("Sent peers and going to sleep");
             tokio::time::sleep(interval).await;
         }
     })
@@ -155,7 +152,7 @@ fn check_piece_download_timeout<'a>(
             continue;
         }
 
-        println!("Timeout occurs!");
+        tracing::warn!("Piece download timeout occurs!");
         abort_handle.abort();
         piece_queue.push_back(piece_des.clone());
     }
@@ -195,8 +192,6 @@ impl TorrentDownloader {
         let tracker_handle = spawn_tracker_poller(self.tracker, tracker_tx);
 
         'main: loop {
-            println!("Doing next iteration");
-
             let Some(new_peers) = fetch_new_peers(&active_peers, &mut tracker_rx).await else {
                 tokio::time::sleep(Duration::from_millis(100)).await;
                 continue;
@@ -206,7 +201,7 @@ impl TorrentDownloader {
             // Start a task for every peer that is inactive.
             for peer in new_peers {
                 if active_peers.len() + new_active_peers.len() >= MAX_CONCURRENT_DOWNLOADS {
-                    println!("Max concurrent downloads reached!");
+                    tracing::debug!("Max concurrent downloads reached!");
                     break;
                 }
 
@@ -215,7 +210,7 @@ impl TorrentDownloader {
                     None => break 'main,
                 };
 
-                println!("Taking piece descriptor from the queue");
+                tracing::trace!("Taking piece descriptor from queue");
 
                 let handle = spawn_piece_download_task(
                     peer,
@@ -239,7 +234,7 @@ impl TorrentDownloader {
 
             // Check for tasks/peers that have already completed.
             while let Some(Ok(res)) = handles.try_join_next() {
-                println!("Task finished!");
+                tracing::trace!("Piece download task finished");
                 match res {
                     PieceDownloadResult::Success { peer, .. } => {
                         // TODO: Save piece to file.

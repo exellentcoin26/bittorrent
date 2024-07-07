@@ -39,6 +39,8 @@ tempfile = "3"
 thiserror = "1.0.38"
 # Async http requests
 tokio = { version = "1.38.0", features = ["full"] }
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 
 [workspace]
 resolver = "2"

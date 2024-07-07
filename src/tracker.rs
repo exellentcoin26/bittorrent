@@ -90,7 +90,7 @@ impl Tracker {
 
 impl TrackerRequest {
     pub async fn send(self, url: &str) -> Result<TrackerResponse> {
-        println!("Sending request to tracker");
+        tracing::debug!("Sending request to tracker");
 
         mod inner {
             use std::{
