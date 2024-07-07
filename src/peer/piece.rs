@@ -1,6 +1,5 @@
 use anyhow::{bail, Context, Result};
 use bytes::Bytes;
-use tempfile::Builder as TempFileBuilder;
 use tokio::net::TcpStream;
 
 use super::{message::PeerMessage, prepare_buffer_with_length, Connected, Peer};

@@ -1,7 +1,4 @@
-use std::{
-    net::SocketAddrV4,
-    path::{Path, PathBuf},
-};
+use std::{net::SocketAddrV4, path::PathBuf};
 
 use anyhow::{Context, Result};
 use bencode::BencodeValue;
